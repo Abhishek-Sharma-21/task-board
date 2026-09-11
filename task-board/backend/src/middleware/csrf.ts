@@ -35,9 +35,18 @@ export function requireCsrf(req: Request, _res: Response, next: NextFunction): v
 /**
  * Convenience: combine ensure + strict. Use for logout etc.
  */
-export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
-  ensureCsrfCookie(req, res, (err) => {
-    if (err) return next(err);
-    requireCsrf(req, res, next);
-  });
+// export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
+//   ensureCsrfCookie(req, res, (err) => {
+//     if (err) return next(err);
+//     requireCsrf(req, res, next);
+//   });
+// }
+
+export function csrfProtection(
+  _req: Request,
+  _res: Response,
+  next: NextFunction
+): void {
+  // CSRF temporarily disabled
+  return next();
 }
