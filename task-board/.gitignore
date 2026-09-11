@@ -32,3 +32,6 @@ frontend/dist/
 backend/dist/
 shared/dist/
 *.tsbuildinfo
+
+
+*.zip
