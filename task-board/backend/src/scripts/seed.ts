@@ -4,13 +4,13 @@ import { prisma } from '../config/db.js';
 const passwordHash = bcrypt.hashSync('password123', 10);
 
 const seedUsers = [
-  { name: 'Abhishek Sharma', email: 'owner@forgeboard.com', passwordHash },
-  { name: 'Sarah Connor', email: 'admin1@forgeboard.com', passwordHash },
-  { name: 'John Doe', email: 'admin2@forgeboard.com', passwordHash },
-  { name: 'Priya Patel', email: 'member1@forgeboard.com', passwordHash },
-  { name: 'Rahul Kumar', email: 'member2@forgeboard.com', passwordHash },
-  { name: 'Alex Smith', email: 'member3@forgeboard.com', passwordHash },
-  { name: 'Elena Rostova', email: 'member4@forgeboard.com', passwordHash },
+  { name: 'Abhishek Sharma', email: 'owner@taskboard.com', passwordHash },
+  { name: 'Sarah Connor', email: 'admin1@taskboard.com', passwordHash },
+  { name: 'John Doe', email: 'admin2@taskboard.com', passwordHash },
+  { name: 'Priya Patel', email: 'member1@taskboard.com', passwordHash },
+  { name: 'Rahul Kumar', email: 'member2@taskboard.com', passwordHash },
+  { name: 'Alex Smith', email: 'member3@taskboard.com', passwordHash },
+  { name: 'Elena Rostova', email: 'member4@taskboard.com', passwordHash },
 ];
 
 async function seed() {

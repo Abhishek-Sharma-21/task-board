@@ -23,9 +23,13 @@ async function registerUser(email: string, name: string = 'User') {
 
 describe('Task, Comment, and Notification API Endpoints', () => {
   it('Handles Task CRUD, optimistic version locking, comments, and activities', async () => {
-    // 1. Setup Users
-    const owner = await registerUser('owner-p2@example.com', 'Owner User');
-    const member = await registerUser('member-p2@example.com', 'Member User');
+    // 1. Setup Users with dynamic emails
+    const suffix = Date.now();
+    const ownerEmail = `owner-p2-${suffix}@example.com`;
+    const memberEmail = `member-p2-${suffix}@example.com`;
+
+    const owner = await registerUser(ownerEmail, 'Owner User');
+    const member = await registerUser(memberEmail, 'Member User');
 
     // 2. Owner creates a workspace
     const wsRes = await request(app)
@@ -42,7 +46,7 @@ describe('Task, Comment, and Notification API Endpoints', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .set('Cookie', owner.csrfCookie)
       .set('x-csrf-token', owner.csrfToken)
-      .send({ email: 'member-p2@example.com', role: 'member' });
+      .send({ email: memberEmail, role: 'member' });
 
     // 3. Owner creates project
     const projRes = await request(app)
@@ -50,7 +54,7 @@ describe('Task, Comment, and Notification API Endpoints', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .set('Cookie', owner.csrfCookie)
       .set('x-csrf-token', owner.csrfToken)
-      .send({ name: 'Launch Pad', description: 'Operations' });
+      .send({ name: 'Launch Pad', description: 'Operations', memberUserIds: [member.userId] });
     const projectId = projRes.body.data.id;
 
     // 4. Owner creates board

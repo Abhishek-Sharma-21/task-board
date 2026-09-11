@@ -367,3 +367,71 @@ export async function deleteTask(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
+
+export async function archiveTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const isArchived = req.body.isArchived !== undefined ? Boolean(req.body.isArchived) : true;
+    const task = await taskService.archiveTask(taskId, isArchived);
+
+    broadcast(`board:${task.boardId}`, 'task:updated', task);
+
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addChecklistItem(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'taskId');
+    const { title } = req.body;
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      res.status(400).json({ success: false, message: 'Title is required', errorCode: 'BAD_REQUEST' });
+      return;
+    }
+    const item = await taskService.addChecklistItem(taskId, title);
+    const updatedTask = await taskService.getTaskById(taskId);
+    if (updatedTask) {
+      broadcast(`board:${updatedTask.boardId}`, 'task:updated', updatedTask);
+    }
+    res.status(201).json({ success: true, data: item });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateChecklistItem(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const itemId = requireParam(req, 'itemId');
+    const { title, completed } = req.body;
+    const item = await taskService.updateChecklistItem(itemId, { title, completed });
+    const updatedTask = await taskService.getTaskById(item.taskId);
+    if (updatedTask) {
+      broadcast(`board:${updatedTask.boardId}`, 'task:updated', updatedTask);
+    }
+    res.status(200).json({ success: true, data: item });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteChecklistItem(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const itemId = requireParam(req, 'itemId');
+    const item = await prisma.checklistItem.findUnique({ where: { id: itemId } });
+    if (item) {
+      await taskService.deleteChecklistItem(itemId);
+      const updatedTask = await taskService.getTaskById(item.taskId);
+      if (updatedTask) {
+        broadcast(`board:${updatedTask.boardId}`, 'task:updated', updatedTask);
+      }
+    }
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}

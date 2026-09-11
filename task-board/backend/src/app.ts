@@ -12,6 +12,7 @@ import commentRouter from './routes/comment.routes.js';
 import notificationRouter from './routes/notification.routes.js';
 import activityRouter from './routes/activity.routes.js';
 import projectMemberRouter from './routes/projectMember.routes.js';
+import analyticsRouter from './routes/analytics.routes.js';
 import { errorHandler, notFound } from './utils/errors.js';
 
 export function createApp(): express.Express {
@@ -39,6 +40,7 @@ export function createApp(): express.Express {
   app.use('/api/notifications', notificationRouter);
   app.use('/api', activityRouter);
   app.use('/api', projectMemberRouter);
+  app.use('/api', analyticsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

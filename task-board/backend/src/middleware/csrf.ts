@@ -42,11 +42,7 @@ export function requireCsrf(req: Request, _res: Response, next: NextFunction): v
 //   });
 // }
 
-export function csrfProtection(
-  _req: Request,
-  _res: Response,
-  next: NextFunction
-): void {
+export function csrfProtection(_req: Request, _res: Response, next: NextFunction): void {
   // CSRF temporarily disabled
   return next();
 }

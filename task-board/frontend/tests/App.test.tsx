@@ -6,7 +6,7 @@ describe('App', () => {
   it('renders title', async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.queryAllByText(/ForgeBoard/i).length).toBeGreaterThan(0);
+      expect(screen.queryAllByText(/Task Board/i).length).toBeGreaterThan(0);
     });
   });
 });

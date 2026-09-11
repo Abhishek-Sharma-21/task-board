@@ -48,7 +48,7 @@ describe('Task Drawer & Comments UI tests', () => {
 
     // Set mock authenticated user
     useAuthStore.setState({
-      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com' },
+      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com' },
       accessToken: 'token-123',
       isInitialized: true,
     });
@@ -57,7 +57,7 @@ describe('Task Drawer & Comments UI tests', () => {
     useWorkspaceStore.setState({
       activeWorkspace: { id: 'ws-123', name: 'Northstar Studio', ownerId: 'user-123' },
       members: [
-        { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com', role: 'owner' },
+        { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com', role: 'owner' },
       ],
     });
 
@@ -105,7 +105,7 @@ describe('Task Drawer & Comments UI tests', () => {
       {
         id: 'comment-1',
         taskId: 'task-1',
-        user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com' },
+        user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com' },
         body: 'Already pushed to Neon server.',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -114,7 +114,7 @@ describe('Task Drawer & Comments UI tests', () => {
     const mockNewComment = {
       id: 'comment-2',
       taskId: 'task-1',
-      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com' },
+      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com' },
       body: 'Verified working.',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -129,6 +129,9 @@ describe('Task Drawer & Comments UI tests', () => {
       }
       if (url === '/tasks/task-1/comments') {
         return Promise.resolve({ data: { success: true, data: mockComments } });
+      }
+      if (url === '/tasks/task-1/activity') {
+        return Promise.resolve({ data: { success: true, data: [] } });
       }
       return Promise.reject(new Error('Not found'));
     });
@@ -157,7 +160,7 @@ describe('Task Drawer & Comments UI tests', () => {
 
     // 2. Verify drawer slide-over contents open
     await waitFor(() => {
-      expect(screen.getByText(/TASK DETAILS/i)).toBeInTheDocument();
+      expect(screen.getByText('Details')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Database Schema Design')).toBeInTheDocument();
       expect(screen.getByDisplayValue('implement Postgres migrations')).toBeInTheDocument();
       expect(screen.getByText('Already pushed to Neon server.')).toBeInTheDocument();
@@ -203,7 +206,7 @@ describe('Task Drawer & Comments UI tests', () => {
       if (url === '/boards/board-123/tasks') {
         return Promise.resolve({ data: { success: true, data: mockTasks } });
       }
-      if (url === '/tasks/task-1/comments') {
+      if (url === '/tasks/task-1/comments' || url === '/tasks/task-1/activity') {
         return Promise.resolve({ data: { success: true, data: [] } });
       }
       return Promise.reject(new Error('Not found'));

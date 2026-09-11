@@ -13,6 +13,7 @@ interface BoardState {
 
   fetchBoards: (projectId: string) => Promise<void>;
   selectBoard: (boardId: string) => Promise<void>;
+  resetWorkspaceBoards: () => void;
   setActiveUsers: (users: Array<{ id: string; name: string }>) => void;
   createBoard: (projectId: string, name: string, description?: string) => Promise<Board>;
   fetchColumnsAndTasks: (boardId: string) => Promise<void>;
@@ -47,6 +48,10 @@ interface BoardState {
     }
   ) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
+  archiveTask: (taskId: string, isArchived?: boolean) => Promise<void>;
+  addChecklistItem: (taskId: string, title: string) => Promise<void>;
+  toggleChecklistItem: (itemId: string, completed: boolean) => Promise<void>;
+  deleteChecklistItem: (itemId: string) => Promise<void>;
 
   // Optimistic & real-time drag-and-drop triggers
   moveTaskOptimistic: (taskId: string, fromColId: string, toColId: string, newPosition: number) => void;
@@ -65,6 +70,17 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  resetWorkspaceBoards: () => {
+    set({
+      boards: [],
+      activeBoard: null,
+      columns: [],
+      tasksByColumn: {},
+      activeUsers: [],
+      error: null,
+    });
+  },
+
   setActiveUsers: (users) => set({ activeUsers: users }),
 
   fetchBoards: async (projectId) => {
@@ -73,7 +89,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       const response = await api.get<{ success: true; data: Board[] }>(`/projects/${projectId}/boards`);
       const boards = response.data.data;
       set({ boards, isLoading: false });
-      // Set the first board as active if none is active
       if (boards.length > 0 && !get().activeBoard) {
         await get().selectBoard(boards[0].id);
       }
@@ -114,33 +129,31 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   fetchColumnsAndTasks: async (boardId) => {
     set({ isLoading: true, error: null });
     try {
-      const [colRes, taskRes] = await Promise.all([
-        api.get<{ success: true; data: BoardColumn[] }>(`/boards/${boardId}/columns`),
-        api.get<{ success: true; data: Task[] }>(`/boards/${boardId}/tasks`),
-      ]);
+      const colsRes = await api.get<{ success: true; data: BoardColumn[] }>(`/boards/${boardId}/columns`);
+      const columns = colsRes.data.data;
 
-      const columns = colRes.data.data;
-      const tasks = taskRes.data.data;
+      const tasksRes = await api.get<{ success: true; data: Task[] }>(`/boards/${boardId}/tasks`);
+      const tasks = tasksRes.data.data;
 
-      // Group tasks by columnId
       const tasksByColumn: Record<string, Task[]> = {};
-      columns.forEach((col) => {
-        tasksByColumn[col.id] = [];
-      });
-      tasks.forEach((task) => {
-        if (tasksByColumn[task.columnId]) {
-          tasksByColumn[task.columnId].push(task);
-        }
+      columns.forEach((c) => {
+        tasksByColumn[c.id] = [];
       });
 
-      // Sort lists by task position
-      Object.keys(tasksByColumn).forEach((colId) => {
-        tasksByColumn[colId].sort((a, b) => a.position - b.position);
+      tasks.forEach((t) => {
+        if (!tasksByColumn[t.columnId]) {
+          tasksByColumn[t.columnId] = [];
+        }
+        tasksByColumn[t.columnId].push(t);
+      });
+
+      Object.keys(tasksByColumn).forEach((cid) => {
+        tasksByColumn[cid].sort((a, b) => a.position - b.position);
       });
 
       set({ columns, tasksByColumn, isLoading: false });
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Failed to load columns/tasks', isLoading: false });
+      set({ error: err.response?.data?.message || 'Failed to fetch board columns and tasks', isLoading: false });
     }
   },
 
@@ -175,7 +188,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   },
 
   reorderColumns: async (boardId, orderedIds) => {
-    // Optimistic columns update
     const previousCols = [...get().columns];
     const reordered = orderedIds
       .map((id) => previousCols.find((c) => c.id === id))
@@ -235,7 +247,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   deleteTask: async (taskId) => {
     set({ error: null });
-    // Find task to know which list to delete from optimistically
     let targetTask: Task | null = null;
     const tasksByColumn = { ...get().tasksByColumn };
 
@@ -258,6 +269,51 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
+  archiveTask: async (taskId, isArchived = true) => {
+    try {
+      const response = await api.patch<{ success: boolean; data: Task }>(`/tasks/${taskId}/archive`, { isArchived });
+      get().addOrUpdateTaskRealtime(response.data.data);
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to archive task' });
+    }
+  },
+
+  addChecklistItem: async (taskId, title) => {
+    try {
+      await api.post(`/tasks/${taskId}/checklists`, { title });
+      const activeBoard = get().activeBoard;
+      if (activeBoard) {
+        await get().fetchColumnsAndTasks(activeBoard.id);
+      }
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to add checklist item' });
+    }
+  },
+
+  toggleChecklistItem: async (itemId, completed) => {
+    try {
+      await api.patch(`/checklists/${itemId}`, { completed });
+      const activeBoard = get().activeBoard;
+      if (activeBoard) {
+        await get().fetchColumnsAndTasks(activeBoard.id);
+      }
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to update checklist item' });
+    }
+  },
+
+  deleteChecklistItem: async (itemId) => {
+    try {
+      await api.delete(`/checklists/${itemId}`);
+      const activeBoard = get().activeBoard;
+      if (activeBoard) {
+        await get().fetchColumnsAndTasks(activeBoard.id);
+      }
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to delete checklist item' });
+    }
+  },
+
   moveTaskOptimistic: (taskId, fromColId, toColId, newPosition) => {
     const state = get();
     const sourceList = [...(state.tasksByColumn[fromColId] || [])];
@@ -269,10 +325,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const [draggedTask] = sourceList.splice(taskIndex, 1);
     const updatedTask = { ...draggedTask, columnId: toColId };
 
-    // Insert task into destination list
     destList.splice(newPosition, 0, updatedTask);
 
-    // Re-index positions
     const finalSourceList = sourceList.map((t, idx) => ({ ...t, position: idx }));
     const finalDestList = destList.map((t, idx) => ({ ...t, position: idx }));
 
@@ -287,6 +341,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   moveTaskDb: async (taskId, toColumnId, toPosition, expectedVersion) => {
     set({ error: null });
+    const snapshotBeforeMove = JSON.parse(JSON.stringify(get().tasksByColumn));
     try {
       const response = await api.put<{ success: true; data: Task }>(`/tasks/${taskId}/move`, {
         toColumnId,
@@ -294,7 +349,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         expectedVersion,
       });
 
-      // Update task in state with final version returned by server
       const updated = response.data.data;
       set((state) => {
         const colId = updated.columnId;
@@ -307,7 +361,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         };
       });
     } catch (err: any) {
-      // Fetch fresh board state on conflict / failure to roll back accurately
+      // Revert immediately to snapshot before fetch
+      set({ tasksByColumn: snapshotBeforeMove });
       const activeBoard = get().activeBoard;
       if (activeBoard) {
         await get().fetchColumnsAndTasks(activeBoard.id);
@@ -328,16 +383,13 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   addOrUpdateTaskRealtime: (task) => {
     set((state) => {
       const colId = task.columnId;
-      // 1. Remove task from any existing list (in case it was moved by another user)
       const tasksByColumn = { ...state.tasksByColumn };
       Object.keys(tasksByColumn).forEach((cid) => {
         tasksByColumn[cid] = tasksByColumn[cid].filter((t) => t.id !== task.id);
       });
 
-      // 2. Insert into the target column list
       const targetList = [...(tasksByColumn[colId] || [])];
       
-      // Look for a placement index matching position or push
       const existingIdx = targetList.findIndex((t) => t.id === task.id);
       if (existingIdx !== -1) {
         targetList[existingIdx] = task;

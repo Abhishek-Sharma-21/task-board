@@ -65,6 +65,12 @@ export const CreateWorkspaceInput = z.object({
 });
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceInput>;
 
+export const UpdateWorkspaceInput = z.object({
+  name: z.string().min(1).max(80).optional(),
+  activityRetentionDays: z.number().int().min(0).max(3650).optional(),
+});
+export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceInput>;
+
 export const AddMemberInput = z.object({
   email: z.string().email(),
   role: WorkspaceRole.default('member'),
@@ -80,6 +86,7 @@ export const WorkspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   ownerId: z.string(),
+  activityRetentionDays: z.number().int().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -100,8 +107,21 @@ export const CreateProjectInput = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional().default(''),
   status: ProjectStatus.default('Planning'),
+  headUserId: z.string().optional(),
+  memberUserIds: z.array(z.string()).optional().default([]),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
+
+export const SetProjectHeadInput = z.object({
+  userId: z.string(),
+});
+export type SetProjectHeadInput = z.infer<typeof SetProjectHeadInput>;
+
+export const AddProjectMemberInput = z.object({
+  userId: z.string(),
+  role: z.enum(['head', 'member']).optional().default('member'),
+});
+export type AddProjectMemberInput = z.infer<typeof AddProjectMemberInput>;
 
 // ---------- Board / Column ----------
 export const CreateBoardInput = z.object({

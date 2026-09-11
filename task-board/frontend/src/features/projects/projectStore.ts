@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../../api/client';
+import { useWorkspaceStore } from '../workspaces/workspaceStore';
 
 export interface Project {
   id: string;
@@ -15,34 +16,93 @@ export interface Project {
 interface ProjectState {
   projects: Project[];
   activeProject: Project | null;
+  projectsLoaded: boolean;
+  lastFetchedWorkspaceId: string | null;
+  lastProjectsFetchedAt: number | null;
   isLoading: boolean;
   error: string | null;
-  fetchProjects: (workspaceId: string) => Promise<void>;
+
+  fetchProjects: (workspaceId: string, force?: boolean) => Promise<void>;
   selectProject: (projectId: string) => void;
-  createProject: (workspaceId: string, name: string, description?: string) => Promise<Project>;
+  createProject: (
+    workspaceId: string,
+    name: string,
+    description?: string,
+    headUserId?: string,
+    memberUserIds?: string[]
+  ) => Promise<Project>;
   updateProject: (projectId: string, payload: { name?: string; description?: string; status?: string }) => Promise<Project>;
   deleteProject: (projectId: string) => Promise<void>;
+  clearProjects: () => void;
+  resetWorkspaceProjects: () => void;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
   activeProject: null,
+  projectsLoaded: false,
+  lastFetchedWorkspaceId: null,
+  lastProjectsFetchedAt: null,
   isLoading: false,
   error: null,
 
-  fetchProjects: async (workspaceId) => {
+  clearProjects: () => {
+    set({
+      projects: [],
+      activeProject: null,
+      projectsLoaded: false,
+      lastFetchedWorkspaceId: null,
+      lastProjectsFetchedAt: null,
+    });
+  },
+
+  resetWorkspaceProjects: () => {
+    set({
+      projects: [],
+      activeProject: null,
+      projectsLoaded: false,
+      lastFetchedWorkspaceId: null,
+      lastProjectsFetchedAt: null,
+      error: null,
+    });
+  },
+
+  fetchProjects: async (workspaceId, force = false) => {
+    const state = get();
+    const isCached =
+      !force &&
+      state.projectsLoaded &&
+      state.lastFetchedWorkspaceId === workspaceId &&
+      state.lastProjectsFetchedAt &&
+      Date.now() - state.lastProjectsFetchedAt < 60000;
+
+    if (isCached) {
+      return;
+    }
+
     set({ isLoading: true, error: null });
     try {
       const res = await api.get<{ success: true; data: Project[] }>(`/workspaces/${workspaceId}/projects`);
       const projects = res.data.data;
-      set({ projects, isLoading: false });
-      if (projects.length > 0 && !get().activeProject) {
-        set({ activeProject: projects[0] });
-      } else if (projects.length === 0) {
-        set({ activeProject: null });
+      
+      // Verify active workspace has not changed during async call
+      const activeWsId = useWorkspaceStore.getState().activeWorkspace?.id;
+      if (activeWsId && activeWsId !== workspaceId) {
+        return;
       }
+
+      const currentActiveId = get().activeProject?.id;
+      const matchingActive = projects.find((p) => p.id === currentActiveId);
+      set({
+        projects,
+        activeProject: matchingActive || (projects.length > 0 ? projects[0] : null),
+        projectsLoaded: true,
+        lastFetchedWorkspaceId: workspaceId,
+        lastProjectsFetchedAt: Date.now(),
+        isLoading: false,
+      });
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Failed to fetch projects', isLoading: false });
+      set({ error: err.response?.data?.message || 'Failed to fetch projects', isLoading: false, projects: [], activeProject: null });
     }
   },
 
@@ -51,22 +111,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ activeProject: proj });
   },
 
-  createProject: async (workspaceId, name, description = '') => {
+  createProject: async (workspaceId, name, description = '', headUserId, memberUserIds = []) => {
     set({ isLoading: true, error: null });
     try {
       const res = await api.post<{ success: true; data: Project }>(`/workspaces/${workspaceId}/projects`, {
         name,
         description,
+        headUserId,
+        memberUserIds,
       });
       const newProj = res.data.data;
       set((state) => ({
         projects: [...state.projects, newProj],
-        activeProject: state.activeProject ? state.activeProject : newProj,
+        activeProject: newProj,
+        projectsLoaded: true,
+        lastFetchedWorkspaceId: workspaceId,
+        lastProjectsFetchedAt: Date.now(),
         isLoading: false,
       }));
-      if (!get().activeProject || get().activeProject?.id === newProj.id) {
-        set({ activeProject: newProj });
-      }
       return newProj;
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Failed to create project';
@@ -98,16 +160,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       await api.delete(`/projects/${projectId}`);
       set((state) => {
-        const filtered = state.projects.filter((p) => p.id !== projectId);
-        const nextActive = state.activeProject?.id === projectId ? (filtered[0] || null) : state.activeProject;
+        const remaining = state.projects.filter((p) => p.id !== projectId);
         return {
-          projects: filtered,
-          activeProject: nextActive,
+          projects: remaining,
+          activeProject: state.activeProject?.id === projectId ? (remaining[0] || null) : state.activeProject,
           isLoading: false,
         };
       });
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Failed to delete project', isLoading: false });
+      const errMsg = err.response?.data?.message || 'Failed to delete project';
+      set({ error: errMsg, isLoading: false });
+      throw new Error(errMsg);
     }
   },
 }));

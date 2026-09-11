@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as workspaceService from '../services/workspaceService.js';
-import { CreateWorkspaceInput, AddMemberInput, UpdateMemberRoleInput } from '../schemas.js';
+import { CreateWorkspaceInput, UpdateWorkspaceInput, AddMemberInput, UpdateMemberRoleInput } from '../schemas.js';
 import { prisma } from '../config/db.js';
 
 function requireParam(req: Request, name: string): string {
@@ -117,6 +117,48 @@ export async function removeMember(req: Request, res: Response, next: NextFuncti
     const workspaceId = requireParam(req, 'id');
     const userId = requireParam(req, 'userId');
     await workspaceService.removeMemberFromWorkspace(workspaceId, userId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const workspaceId = requireParam(req, 'id');
+    const parsedBody = UpdateWorkspaceInput.parse(req.body);
+    const workspace = await workspaceService.updateWorkspace(workspaceId, parsedBody);
+    res.status(200).json({
+      success: true,
+      data: workspace,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const workspaceId = requireParam(req, 'id');
+    if (!req.userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+    await workspaceService.deleteWorkspace(workspaceId, req.userId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function leaveWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const workspaceId = requireParam(req, 'id');
+    if (!req.userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+    await workspaceService.leaveWorkspace(workspaceId, req.userId);
     res.status(204).send();
   } catch (err) {
     next(err);

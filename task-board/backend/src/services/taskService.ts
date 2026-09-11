@@ -7,6 +7,16 @@ function isValidId(id: string): boolean {
   return UUID_REGEX.test(id);
 }
 
+export interface ChecklistItemData {
+  id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  position: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface TaskData {
   id: string;
   title: string;
@@ -21,8 +31,90 @@ export interface TaskData {
   labels: string[];
   dueDate?: Date;
   version: number;
+  isArchived: boolean;
+  checklists?: ChecklistItemData[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export async function archiveTask(taskId: string, isArchived: boolean = true): Promise<TaskData> {
+  if (!isValidId(taskId)) {
+    throw new HttpError(400, 'INVALID_TASK_ID', 'Invalid task ID');
+  }
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) {
+    throw new HttpError(404, 'TASK_NOT_FOUND', 'Task not found');
+  }
+  const updated = await prisma.task.update({
+    where: { id: taskId },
+    data: { isArchived, version: task.version + 1 },
+    include: { checklists: { orderBy: { position: 'asc' } } },
+  });
+  return formatTask(updated);
+}
+
+export async function getChecklistItems(taskId: string): Promise<ChecklistItemData[]> {
+  if (!isValidId(taskId)) return [];
+  const items = await prisma.checklistItem.findMany({
+    where: { taskId },
+    orderBy: { position: 'asc' },
+  });
+  return items;
+}
+
+export async function addChecklistItem(taskId: string, title: string): Promise<ChecklistItemData> {
+  if (!isValidId(taskId) || !title.trim()) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid task ID or empty title');
+  }
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) {
+    throw new HttpError(404, 'TASK_NOT_FOUND', 'Task not found');
+  }
+  const lastItem = await prisma.checklistItem.findFirst({
+    where: { taskId },
+    orderBy: { position: 'desc' },
+  });
+  const position = lastItem ? lastItem.position + 1 : 0;
+  const item = await prisma.checklistItem.create({
+    data: {
+      taskId,
+      title: title.trim(),
+      position,
+    },
+  });
+  return item;
+}
+
+export async function updateChecklistItem(
+  itemId: string,
+  payload: { title?: string; completed?: boolean }
+): Promise<ChecklistItemData> {
+  if (!isValidId(itemId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid checklist item ID');
+  }
+  const item = await prisma.checklistItem.findUnique({ where: { id: itemId } });
+  if (!item) {
+    throw new HttpError(404, 'NOT_FOUND', 'Checklist item not found');
+  }
+  const updated = await prisma.checklistItem.update({
+    where: { id: itemId },
+    data: {
+      title: payload.title !== undefined ? payload.title.trim() : undefined,
+      completed: payload.completed !== undefined ? payload.completed : undefined,
+    },
+  });
+  return updated;
+}
+
+export async function deleteChecklistItem(itemId: string): Promise<void> {
+  if (!isValidId(itemId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid checklist item ID');
+  }
+  const item = await prisma.checklistItem.findUnique({ where: { id: itemId } });
+  if (!item) {
+    throw new HttpError(404, 'NOT_FOUND', 'Checklist item not found');
+  }
+  await prisma.checklistItem.delete({ where: { id: itemId } });
 }
 
 export async function createTask(
@@ -69,6 +161,7 @@ export async function createTask(
       dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
       version: 0,
     },
+    include: { checklists: { orderBy: { position: 'asc' } } },
   });
 
   return formatTask(task);
@@ -81,6 +174,7 @@ export async function getTasksForBoard(boardId: string): Promise<TaskData[]> {
   const tasks = await prisma.task.findMany({
     where: { boardId },
     orderBy: { position: 'asc' },
+    include: { checklists: { orderBy: { position: 'asc' } } },
   });
   return tasks.map(formatTask);
 }
@@ -91,6 +185,7 @@ export async function getTaskById(taskId: string): Promise<TaskData | null> {
   }
   const task = await prisma.task.findUnique({
     where: { id: taskId },
+    include: { checklists: { orderBy: { position: 'asc' } } },
   });
   if (!task) {
     return null;
@@ -146,6 +241,7 @@ export async function updateTask(
   const updated = await prisma.task.update({
     where: { id: taskId },
     data: updates,
+    include: { checklists: { orderBy: { position: 'asc' } } },
   });
 
   return formatTask(updated);
@@ -222,6 +318,7 @@ export async function moveTask(
       position: toPosition,
       version: task.version + 1,
     },
+    include: { checklists: { orderBy: { position: 'asc' } } },
   });
 
   return formatTask(updated);
@@ -265,6 +362,8 @@ function formatTask(t: any): TaskData {
     labels: t.labels,
     dueDate: t.dueDate || undefined,
     version: t.version,
+    isArchived: t.isArchived || false,
+    checklists: t.checklists || [],
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   };

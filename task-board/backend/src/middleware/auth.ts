@@ -68,8 +68,10 @@ export function requireWorkspaceRole(minRole: RoleName, workspaceIdParamName: st
         return next(new HttpError(403, 'FORBIDDEN', 'You are not a member of this workspace'));
       }
 
-      const userRole = member.role as RoleName;
-      if (ROLE_LEVELS[userRole] < ROLE_LEVELS[minRole]) {
+      const userRole = (member.role || '').toLowerCase() as RoleName;
+      const userLevel = ROLE_LEVELS[userRole] || 0;
+      const minLevel = ROLE_LEVELS[minRole] || 0;
+      if (userLevel < minLevel) {
         return next(new HttpError(403, 'FORBIDDEN', 'Insufficient permissions'));
       }
 
@@ -112,7 +114,7 @@ export function requireProjectRole(minRole: RoleName, projectIdParamName: string
         where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
       });
 
-      if (wsMember && (wsMember.role === 'owner' || wsMember.role === 'admin')) {
+      if (wsMember && (wsMember.role.toLowerCase() === 'owner' || wsMember.role.toLowerCase() === 'admin')) {
         return next();
       }
 

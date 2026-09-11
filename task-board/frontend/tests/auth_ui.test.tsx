@@ -59,7 +59,7 @@ describe('Authentication UI & Functional Tests', () => {
         </MemoryRouter>
       );
 
-      // Verify fields exist using the new ForgeBoard labels
+      // Verify fields exist using the new Task Board labels
       expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Work email/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();

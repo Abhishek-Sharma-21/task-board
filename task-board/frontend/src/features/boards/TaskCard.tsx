@@ -9,7 +9,7 @@ interface TaskCardProps {
   isDragDisabled?: boolean;
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, isDragDisabled = false }) => {
+const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisabled = false }) => {
   const {
     attributes,
     listeners,
@@ -46,6 +46,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, isDragDisable
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
   };
 
+  const checklists = task.checklists || [];
+  const completedChecklists = checklists.filter((c) => c.completed).length;
+
   return (
     <div
       ref={setNodeRef}
@@ -53,11 +56,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, isDragDisable
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`group select-none border-2 border-border bg-kanban-card p-4 hover:border-border-strong transition-colors rounded-sm shadow-theme-md flex flex-col space-y-4`}
+      className={`group select-none border-2 border-border bg-kanban-card p-4 hover:border-border-strong transition-colors rounded-sm shadow-theme-md flex flex-col space-y-4 ${
+        task.isArchived ? 'opacity-60 bg-surface/50 border-dashed' : ''
+      }`}
     >
       {/* Title & Priority */}
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-bold text-text-primary tracking-tight uppercase group-hover:text-primary transition-colors line-clamp-2">
+        <h4 className="text-sm font-bold text-text-primary tracking-tight uppercase group-hover:text-primary transition-colors line-clamp-2 break-words min-w-0">
+          {task.isArchived && <span className="text-[9px] font-mono font-bold bg-danger/20 text-danger px-1 rounded-xs mr-1">[ARCHIVED]</span>}
           {task.title}
         </h4>
         <span
@@ -69,24 +75,27 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, isDragDisable
 
       {/* Description Preview */}
       {task.description && (
-        <p className="text-xs text-text-muted font-medium line-clamp-2 leading-relaxed">
+        <p className="text-xs text-text-muted font-medium line-clamp-2 leading-relaxed break-words">
           {task.description}
         </p>
       )}
 
-      {/* Tags / Labels */}
-      {task.labels && task.labels.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {task.labels.map((lbl: string) => (
-            <span
-              key={lbl}
-              className="bg-tag border border-tag-border text-tag-text font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm"
-            >
-              {lbl}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Tags & Checklists Badges */}
+      <div className="flex flex-wrap gap-1 items-center">
+        {checklists.length > 0 && (
+          <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+            ✓ {completedChecklists}/{checklists.length}
+          </span>
+        )}
+        {task.labels && task.labels.map((lbl: string) => (
+          <span
+            key={lbl}
+            className="bg-tag border border-tag-border text-tag-text font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm break-all"
+          >
+            {lbl}
+          </span>
+        ))}
+      </div>
 
       {/* Bottom Bar: Due Date & Assignee Initials */}
       <div className="flex items-center justify-between border-t border-border pt-3">
@@ -116,3 +125,5 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, isDragDisable
     </div>
   );
 };
+
+export const TaskCard = React.memo(TaskCardComponent);

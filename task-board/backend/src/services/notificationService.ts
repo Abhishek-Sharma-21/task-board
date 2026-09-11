@@ -9,7 +9,7 @@ function isValidId(id: string): boolean {
 export async function createNotification(
   userId: string,
   senderId: string,
-  type: 'task_assigned' | 'task_moved' | 'comment_added' | 'project_added',
+  type: 'task_assigned' | 'task_moved' | 'comment_added' | 'project_added' | 'comment_mention' | 'task_updated' | 'project_status_changed',
   title: string,
   message: string,
   link?: string

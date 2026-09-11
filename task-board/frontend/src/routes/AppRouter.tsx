@@ -8,6 +8,7 @@ import { BoardPage } from '../features/boards/BoardPage';
 import { ProjectPage } from '../features/projects/ProjectPage';
 import { ActivityPage } from '../pages/ActivityPage';
 import { WorkflowPage } from '../pages/WorkflowPage';
+import { WorkspaceSettingsPage } from '../pages/WorkspaceSettingsPage';
 
 const NotFound: React.FC = () => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '1rem' }}>
@@ -29,6 +30,7 @@ export const AppRouter: React.FC = () => {
             <Route path="/workspaces/:workspaceId/projects/:projectId/boards/:boardId" element={<BoardPage />} />
             <Route path="/workspaces/:workspaceId/projects/:projectId" element={<ProjectPage />} />
             <Route path="/workspaces/:workspaceId/activity" element={<ActivityPage />} />
+            <Route path="/workspaces/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
             <Route path="/workflow" element={<WorkflowPage />} />
             <Route path="/workspaces/:workspaceId" element={<Home />} />
           </Route>

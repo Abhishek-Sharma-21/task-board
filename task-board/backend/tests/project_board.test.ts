@@ -23,10 +23,15 @@ async function registerUser(email: string, name: string = 'User') {
 
 describe('Project and Board API Endpoints', () => {
   it('Handles project and board creation with workspace role checks', async () => {
-    // 1. Register Owner, Admin, and Member
-    const owner = await registerUser('owner@example.com', 'Owner User');
-    const admin = await registerUser('admin@example.com', 'Admin User');
-    const member = await registerUser('member@example.com', 'Member User');
+    // 1. Register Owner, Admin, and Member with dynamic emails
+    const suffix = Date.now();
+    const ownerEmail = `owner_pb_${suffix}@example.com`;
+    const adminEmail = `admin_pb_${suffix}@example.com`;
+    const memberEmail = `member_pb_${suffix}@example.com`;
+
+    const owner = await registerUser(ownerEmail, 'Owner User');
+    const admin = await registerUser(adminEmail, 'Admin User');
+    const member = await registerUser(memberEmail, 'Member User');
 
     // 2. Owner creates a workspace
     const wsRes = await request(app)
@@ -46,7 +51,7 @@ describe('Project and Board API Endpoints', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .set('Cookie', owner.csrfCookie)
       .set('x-csrf-token', owner.csrfToken)
-      .send({ email: 'admin@example.com', role: 'admin' });
+      .send({ email: adminEmail, role: 'admin' });
     expect(addAdminRes.status).toBe(201);
 
     // 4. Add Member to workspace
@@ -55,7 +60,7 @@ describe('Project and Board API Endpoints', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .set('Cookie', owner.csrfCookie)
       .set('x-csrf-token', owner.csrfToken)
-      .send({ email: 'member@example.com', role: 'member' });
+      .send({ email: memberEmail, role: 'member' });
     expect(addMemberRes.status).toBe(201);
 
     // 5. Test Project Creation Roles:
@@ -69,22 +74,22 @@ describe('Project and Board API Endpoints', () => {
       .send({ name: 'Member Project', description: 'A project' });
     expect(createProjectMember.status).toBe(403);
 
-    // Admin tries to create project -> 403 Forbidden (based on literal owner only rule)
+    // Admin tries to create project -> 201 Created (Admin/Owner allowed)
     const createProjectAdmin = await request(app)
       .post(`/api/workspaces/${workspaceId}/projects`)
       .set('Authorization', `Bearer ${admin.token}`)
       .set('Cookie', admin.csrfCookie)
       .set('x-csrf-token', admin.csrfToken)
       .send({ name: 'Admin Project', description: 'A project' });
-    expect(createProjectAdmin.status).toBe(403);
+    expect(createProjectAdmin.status).toBe(201);
 
-    // Owner creates project -> 201 Created
+    // Owner creates project with member assigned -> 201 Created
     const createProjectOwner = await request(app)
       .post(`/api/workspaces/${workspaceId}/projects`)
       .set('Authorization', `Bearer ${owner.token}`)
       .set('Cookie', owner.csrfCookie)
       .set('x-csrf-token', owner.csrfToken)
-      .send({ name: 'Launch Control', description: 'Rocket launcher' });
+      .send({ name: 'Launch Control', description: 'Rocket launcher', memberUserIds: [member.userId] });
     expect(createProjectOwner.status).toBe(201);
     const projectId = createProjectOwner.body.data.id;
     expect(projectId).toBeTypeOf('string');

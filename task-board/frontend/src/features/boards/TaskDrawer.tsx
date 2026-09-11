@@ -4,7 +4,8 @@ import { useAuthStore } from '../auth/authStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
 import { useProjectMemberStore } from '../projects/projectMemberStore';
 import { CommentSection } from '../comments/CommentSection';
-import { Spinner } from '../../components/Spinner';
+import { useActivityStore, Activity } from '../activities/activityStore';
+import { ConfirmationModal } from '../../components/ConfirmationModal';
 import type { Task } from '../../schemas';
 
 interface TaskDrawerProps {
@@ -16,8 +17,14 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
   const currentUser = useAuthStore((state) => state.user);
   const updateTask = useBoardStore((state) => state.updateTask);
   const deleteTask = useBoardStore((state) => state.deleteTask);
+  const archiveTask = useBoardStore((state) => state.archiveTask);
+  const addChecklistItem = useBoardStore((state) => state.addChecklistItem);
+  const toggleChecklistItem = useBoardStore((state) => state.toggleChecklistItem);
+  const deleteChecklistItem = useBoardStore((state) => state.deleteChecklistItem);
+
   const workspaceMembers = useWorkspaceStore((state) => state.members);
   const { members: projectMembers, fetchMembers: fetchProjectMembers } = useProjectMemberStore();
+  const fetchTaskHistory = useActivityStore((state) => state.fetchTaskHistory);
 
   const userMember = workspaceMembers.find((m) => m.id === currentUser?.id);
   const userRole = userMember ? userMember.role : 'member';
@@ -26,13 +33,19 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
   const projectMember = projectMembers.find((m) => m.id === currentUser?.id);
   const canAssign = userRole === 'owner' || userRole === 'admin' || (projectMember?.role === 'head');
 
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
+  const [taskHistory, setTaskHistory] = useState<Activity[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [labelText, setLabelText] = useState('');
+  const [newChecklistText, setNewChecklistText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   // Sync state with selected task
   useEffect(() => {
@@ -54,6 +67,26 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
       }
     }
   }, [task]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (activeTab === 'history' && task) {
+      setLoadingHistory(true);
+      fetchTaskHistory(task.id).then((history) => {
+        setTaskHistory(history);
+        setLoadingHistory(false);
+      });
+    }
+  }, [activeTab, task, fetchTaskHistory]);
 
   if (!task) return null;
 
@@ -77,55 +110,63 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
   };
 
   const handleDescBlur = () => {
-    if (description.trim() !== (task.description || '')) {
-      handleFieldSave({ description: description.trim() });
+    if (description !== task.description) {
+      handleFieldSave({ description });
     }
   };
 
   const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as any;
+    const val = e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent';
     setPriority(val);
     handleFieldSave({ priority: val });
   };
 
   const handleAssigneeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    const finalVal = val === 'unassigned' ? null : val;
-    setAssigneeId(finalVal);
-    handleFieldSave({ assigneeId: finalVal });
+    const val = e.target.value === 'unassigned' ? null : e.target.value;
+    setAssigneeId(val);
+    handleFieldSave({ assigneeId: val });
   };
 
   const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setDueDate(val);
-    // Convert to ISO datetime or null
-    const finalVal = val ? new Date(val).toISOString() : null;
-    handleFieldSave({ dueDate: finalVal });
+    handleFieldSave({ dueDate: val ? val : null });
   };
 
   const handleAddLabel = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && labelText.trim()) {
       e.preventDefault();
-      const newLabel = labelText.trim();
+      const newLabel = labelText.trim().toUpperCase();
       if (!task.labels.includes(newLabel)) {
-        const updatedLabels = [...task.labels, newLabel];
-        handleFieldSave({ labels: updatedLabels });
+        const newLabels = [...task.labels, newLabel];
+        handleFieldSave({ labels: newLabels });
       }
       setLabelText('');
     }
   };
 
   const handleRemoveLabel = (labelToRemove: string) => {
-    const updatedLabels = task.labels.filter((l) => l !== labelToRemove);
-    handleFieldSave({ labels: updatedLabels });
+    const newLabels = task.labels.filter((l) => l !== labelToRemove);
+    handleFieldSave({ labels: newLabels });
   };
 
-  const handleDeleteTask = async () => {
-    if (isDeleting) return;
-    if (!window.confirm('Are you sure you want to delete this task?')) return;
+  const handleToggleArchive = async () => {
+    await archiveTask(task.id, !task.isArchived);
+  };
+
+  const handleAddChecklist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newChecklistText.trim()) {
+      await addChecklistItem(task.id, newChecklistText.trim());
+      setNewChecklistText('');
+    }
+  };
+
+  const handleDeleteTaskConfirmed = async () => {
     setIsDeleting(true);
     try {
       await deleteTask(task.id);
+      setShowConfirmDelete(false);
       onClose();
     } catch (err: any) {
       alert(err.message || 'Failed to delete task');
@@ -133,6 +174,10 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
       setIsDeleting(false);
     }
   };
+
+  const checklists = task.checklists || [];
+  const completedChecklists = checklists.filter((c) => c.completed).length;
+  const checklistPercentage = checklists.length > 0 ? Math.round((completedChecklists / checklists.length) * 100) : 0;
 
   return (
     <>
@@ -143,21 +188,37 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
       />
 
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-lg bg-surface-elevated border-l-2 border-border z-50 shadow-theme-xl flex flex-col justify-between overflow-y-auto p-6 font-sans">
+      <div className="fixed top-0 right-0 h-full w-full sm:max-w-lg bg-surface-elevated border-l-2 border-border z-50 shadow-theme-xl flex flex-col justify-between overflow-y-auto p-4 sm:p-6 font-sans">
         {/* Close Button Header */}
-        <div className="flex justify-between items-center border-b border-border pb-4 mb-6">
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary">
-            TASK DETAILS (v{task.version})
-          </span>
-          <div className="flex items-center space-x-3">
+        <div className="flex justify-between items-center border-b border-border pb-4 mb-6 gap-2">
+          <div className="flex items-center space-x-2 font-mono text-[10px] font-bold uppercase tracking-wider overflow-x-auto whitespace-nowrap">
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`py-1 px-2 rounded-sm ${activeTab === 'details' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+            >
+              Details
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`py-1 px-2 rounded-sm ${activeTab === 'history' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+            >
+              Task History
+            </button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleToggleArchive}
+              className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold uppercase tracking-wider px-2 py-1 bg-surface border border-border rounded-sm"
+            >
+              {task.isArchived ? 'Restore Task' : 'Archive Task'}
+            </button>
             {canDeleteTask && (
               <button
-                onClick={handleDeleteTask}
+                onClick={() => setShowConfirmDelete(true)}
                 disabled={isDeleting}
-                className="text-[10px] font-mono text-danger hover:text-danger-hover hover:underline transition-colors uppercase tracking-wider mr-2 font-bold flex items-center gap-1.5 disabled:opacity-50"
+                className="text-[10px] font-mono text-danger hover:text-danger-hover transition-colors uppercase tracking-wider font-bold flex items-center gap-1 disabled:opacity-50"
               >
-                {isDeleting && <Spinner className="text-danger" />}
-                {isDeleting ? 'Deleting...' : '[Delete Task]'}
+                [Delete]
               </button>
             )}
             <button
@@ -172,6 +233,33 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
         </div>
 
         {/* Drawer Body content */}
+        {activeTab === 'history' ? (
+          <div className="flex-1 space-y-4 font-mono text-xs">
+            <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block">
+              TASK AUDIT LOG & HISTORY
+            </span>
+            {loadingHistory ? (
+              <div className="py-8 text-center text-xs text-text-muted">Loading history...</div>
+            ) : taskHistory.length === 0 ? (
+              <div className="py-8 text-center text-xs text-text-muted italic border border-dashed border-border p-4 rounded-sm">
+                No activity records for this task.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {taskHistory.map((h) => (
+                  <div key={h.id} className="border border-border bg-surface-hover p-3 rounded-sm">
+                    <div className="flex justify-between items-start">
+                      <span className="font-bold text-text-primary">{h.action}</span>
+                      <span className="text-[9px] text-text-muted">{new Date(h.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    {h.description && <p className="text-[11px] text-text-secondary mt-1">{h.description}</p>}
+                    {h.user && <span className="text-[9px] text-text-muted block mt-1">By: {h.user.name}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="flex-1 space-y-6">
           {/* Editable Title */}
           <div>
@@ -219,13 +307,13 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
                 className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="unassigned">UNASSIGNED</option>
-{projectMembers
-  .filter(member => member && member.name != null)
-  .map(member => (
-    <option key={member.id} value={member.id}>
-      {member.name.toUpperCase()} {member.role === 'head' ? '(HEAD)' : ''}
-    </option>
-  ))}
+                {projectMembers
+                  .filter(member => member && member.name != null)
+                  .map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.name.toUpperCase()} {member.role === 'head' ? '(HEAD)' : ''}
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
@@ -249,13 +337,70 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
               Description
             </label>
             <textarea
-              rows={4}
+              rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={handleDescBlur}
               placeholder="ENTER WORK DESCRIPTION OR REQUIREMENTS..."
               className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none leading-relaxed"
             />
+          </div>
+
+          {/* Checklist Subtasks */}
+          <div className="space-y-3 bg-surface border border-border p-4 rounded-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-text-primary">
+                Subtasks / Checklist ({completedChecklists}/{checklists.length})
+              </span>
+              <span className="text-[10px] font-mono text-primary font-bold">{checklistPercentage}%</span>
+            </div>
+
+            {checklists.length > 0 && (
+              <div className="w-full bg-border h-1.5 rounded-full overflow-hidden mb-2">
+                <div className="bg-success h-full transition-all duration-200" style={{ width: `${checklistPercentage}%` }}></div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {checklists.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-2 text-xs font-mono">
+                  <label className="flex items-center space-x-2 cursor-pointer min-w-0 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={(e) => toggleChecklistItem(item.id, e.target.checked)}
+                      className="rounded-xs text-primary focus:ring-0 cursor-pointer"
+                    />
+                    <span className={`break-words min-w-0 ${item.completed ? 'line-through text-text-muted' : 'text-text-primary'}`}>
+                      {item.title}
+                    </span>
+                  </label>
+                  <button
+                    onClick={() => deleteChecklistItem(item.id)}
+                    className="text-text-muted hover:text-danger font-bold text-sm px-1"
+                    title="Delete subtask"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleAddChecklist} className="flex gap-2 pt-1">
+              <input
+                type="text"
+                value={newChecklistText}
+                onChange={(e) => setNewChecklistText(e.target.value)}
+                placeholder="+ Add checklist item..."
+                className="flex-1 bg-input border border-border text-xs font-mono py-1.5 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm"
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-primary text-white text-xs font-mono font-bold uppercase rounded-sm hover:bg-primary-hover transition-colors"
+              >
+                Add
+              </button>
+            </form>
           </div>
 
           {/* Labels Manager */}
@@ -293,7 +438,18 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
           {/* Discussion section */}
           <CommentSection taskId={task.id} />
         </div>
+        )}
       </div>
+
+      <ConfirmationModal
+        isOpen={showConfirmDelete}
+        title="Delete Task"
+        message={`Are you sure you want to permanently delete task "${task.title}"? This action cannot be undone.`}
+        confirmLabel="Delete Task"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteTaskConfirmed}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
     </>
   );
 };

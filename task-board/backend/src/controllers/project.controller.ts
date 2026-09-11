@@ -24,7 +24,9 @@ export async function createProject(req: Request, res: Response, next: NextFunct
       req.userId,
       parsedBody.name,
       parsedBody.description,
-      parsedBody.status
+      parsedBody.status,
+      parsedBody.headUserId,
+      parsedBody.memberUserIds
     );
 
     res.status(201).json({
@@ -39,7 +41,7 @@ export async function createProject(req: Request, res: Response, next: NextFunct
 export async function getProjectsForWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const workspaceId = requireParam(req, 'workspaceId');
-    const projects = await projectService.getProjectsForWorkspace(workspaceId);
+    const projects = await projectService.getProjectsForWorkspace(workspaceId, req.userId);
 
     res.status(200).json({
       success: true,

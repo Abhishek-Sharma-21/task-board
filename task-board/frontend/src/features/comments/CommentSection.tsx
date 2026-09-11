@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useCommentStore } from './commentStore';
 import { useAuthStore } from '../auth/authStore';
+import { useWorkspaceStore } from '../workspaces/workspaceStore';
 import { getSocket } from '../../sockets/socket';
 
 interface CommentSectionProps {
@@ -59,8 +60,27 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
     };
   }, [boardId, taskId, currentUser]);
 
+  const workspaceMembers = useWorkspaceStore((state) => state.members);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setCommentBody(e.target.value);
+    const val = e.target.value;
+    setCommentBody(val);
+
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1 && (lastAtIndex === 0 || /\s/.test(textBeforeCursor[lastAtIndex - 1]))) {
+      const query = textBeforeCursor.slice(lastAtIndex + 1);
+      if (!/\s/.test(query)) {
+        setMentionQuery(query.toLowerCase());
+      } else {
+        setMentionQuery(null);
+      }
+    } else {
+      setMentionQuery(null);
+    }
 
     if (!boardId || !currentUser) return;
     const socket = getSocket();
@@ -77,6 +97,19 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
       socket.emit('stopTyping', { boardId, taskId });
     }, 1500);
   };
+
+  const handleSelectMention = (member: { id: string; name: string }) => {
+    const lastAtIndex = commentBody.lastIndexOf('@');
+    if (lastAtIndex !== -1) {
+      const newText = `${commentBody.slice(0, lastAtIndex)}@${member.name} `;
+      setCommentBody(newText);
+    }
+    setMentionQuery(null);
+  };
+
+  const matchingMembers = mentionQuery !== null
+    ? workspaceMembers.filter((m: { id: string; name: string; role: string }) => m.name.toLowerCase().includes(mentionQuery))
+    : [];
 
   const stopTypingImmediate = () => {
     if (isCurrentlyTypingRef.current && boardId) {
@@ -119,6 +152,20 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
     }).toUpperCase();
   };
 
+  const renderCommentBodyWithMentions = (text: string) => {
+    const parts = text.split(/(@[A-Za-z0-9_. -]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span key={i} className="font-mono font-bold text-primary bg-primary/10 px-1 rounded-xs">
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   const typingNames = Object.values(typingUsers);
 
   return (
@@ -128,14 +175,34 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
       </h4>
 
       {/* Write Comment Form */}
-      <form onSubmit={handlePostComment} className="space-y-3">
+      <form onSubmit={handlePostComment} className="space-y-3 relative">
         <textarea
           rows={3}
           value={commentBody}
           onChange={handleInputChange}
-          placeholder="ADD TO THE DISCUSSION..."
+          placeholder="ADD TO THE DISCUSSION (TYPE @ TO MENTION A TEAMMATE)..."
           className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none"
         />
+
+        {/* Mention Suggestions Popover */}
+        {mentionQuery !== null && matchingMembers.length > 0 && (
+          <div className="absolute bottom-12 left-0 w-64 bg-surface border border-border shadow-xl rounded-sm max-h-40 overflow-y-auto z-50 p-1 font-mono text-xs">
+            <div className="text-[9px] uppercase tracking-wider text-text-muted px-2 py-1 border-b border-border">
+              Mention Team Member
+            </div>
+            {matchingMembers.map((m) => (
+              <div
+                key={m.id}
+                onClick={() => handleSelectMention(m)}
+                className="px-2 py-1.5 hover:bg-primary hover:text-white cursor-pointer rounded-xs flex items-center justify-between"
+              >
+                <span>{m.name}</span>
+                <span className="text-[9px] opacity-75 uppercase">{m.role}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex justify-between items-center">
           {/* Typing Indicator */}
           <div className="text-[10px] font-mono text-text-muted italic uppercase tracking-wider">
@@ -191,7 +258,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
                     </span>
                   </div>
                   <p className="text-xs text-text-muted font-medium leading-relaxed break-words whitespace-pre-wrap">
-                    {comment.body}
+                    {renderCommentBodyWithMentions(comment.body)}
                   </p>
                 </div>
               </div>

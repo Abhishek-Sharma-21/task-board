@@ -80,17 +80,17 @@ describe('Kanban Board Search & Filtering tests', () => {
 
     // Set mock authenticated user
     useAuthStore.setState({
-      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com' },
+      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com' },
       accessToken: 'token-123',
       isInitialized: true,
     });
 
-    // Reset store states
     useWorkspaceStore.setState({
-      activeWorkspace: { id: 'ws-123', name: 'Northstar Studio', ownerId: 'user-123' },
+      currentWorkspace: { id: 'ws-1', name: 'Engineering', slug: 'engineering', role: 'OWNER' },
+      workspaces: [{ id: 'ws-1', name: 'Engineering', slug: 'engineering', role: 'OWNER' }],
       members: [
-        { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com', role: 'owner' },
-        { id: 'user-456', name: 'Sarah Connor', email: 'sarah@forgeboard.com', role: 'member' },
+        { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com', role: 'owner' },
+        { id: 'user-456', name: 'Sarah Connor', email: 'sarah@taskboard.com', role: 'member' },
       ],
     });
 

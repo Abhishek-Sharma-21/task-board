@@ -1,11 +1,25 @@
+import React, { useEffect } from 'react';
 import { useAuthStore } from '../features/auth/authStore';
 import { useWorkspaceStore } from '../features/workspaces/workspaceStore';
-import { useOutletContext } from 'react-router-dom';
+import { useProjectStore } from '../features/projects/projectStore';
+import { useAnalyticsStore } from '../features/analytics/analyticsStore';
+import { useNavigate } from 'react-router-dom';
+import { CardSkeleton } from '../components/SkeletonLoaders';
+import { EmptyState } from '../components/EmptyState';
 
 export const Home: React.FC = () => {
-  const { setIsBoardModalOpen } = useOutletContext<{ setIsBoardModalOpen: (open: boolean) => void }>();
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const { members } = useWorkspaceStore();
+  const { activeWorkspace, members } = useWorkspaceStore();
+  const { projects } = useProjectStore();
+  const { analytics, isLoading, fetchWorkspaceAnalytics } = useAnalyticsStore();
+
+  useEffect(() => {
+    if (activeWorkspace?.id) {
+      fetchWorkspaceAnalytics(activeWorkspace.id);
+    }
+  }, [activeWorkspace?.id, fetchWorkspaceAnalytics]);
+
   const userMember = members.find((m) => m.id === user?.id);
   const userRole = userMember ? userMember.role : 'member';
   const userName = user?.name ? user.name.toUpperCase() : 'USER';
@@ -20,55 +34,159 @@ export const Home: React.FC = () => {
     const dayName = days[now.getDay()];
     const monthName = months[now.getMonth()];
     const date = now.getDate();
-    return `${dayName}, ${monthName} ${date} · SPRINT 04`;
+    return `${dayName}, ${monthName} ${date}`;
   };
 
   return (
-    <div className="space-y-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-10 font-sans">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
         <div>
           <span className="text-xs uppercase font-mono tracking-widest text-text-muted block mb-2">
-            {getCurrentDateFormatted()}
+            {getCurrentDateFormatted()} · {activeWorkspace?.name.toUpperCase() || 'WORKSPACE'}
           </span>
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight text-text-primary leading-none">
-            GOOD MORNING, {userName}.
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-text-primary leading-none">
+            WELCOME, {userName}.
           </h1>
           <p className="mt-2 text-sm text-text-secondary font-medium">
-            A clear view of what is moving, what is blocked, and what ships next.
+            Real-time analytics and workspace overview for {activeWorkspace?.name || 'your active workspace'}.
           </p>
         </div>
 
-        <div className="self-start md:self-center flex items-center space-x-2 bg-surface border border-border py-1.5 px-4 rounded-full text-xs font-mono text-text-secondary">
+        <div className="self-start md:self-center flex items-center space-x-2 bg-surface border border-border py-2 px-4 rounded-full text-xs font-mono text-text-secondary">
           <span className="w-2 h-2 rounded-full bg-success inline-block animate-pulse"></span>
-          <span>Live collaboration ready</span>
+          <span className="uppercase font-bold tracking-wider">{userRole} ROLE</span>
         </div>
       </div>
 
-      <div className="border border-dashed border-border bg-surface/40 rounded-sm p-12 text-center max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[350px]">
-        <div className="w-12 h-12 bg-success-light border border-success/30 text-success flex items-center justify-center rounded-sm mb-6">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+      {/* Analytics Statistics Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-surface border border-border p-6 rounded-sm space-y-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted">
+              PROJECTS & MEMBERS
+            </span>
+            <div className="text-3xl font-black text-text-primary">
+              {analytics?.totalProjects ?? projects.length}
+            </div>
+            <p className="text-xs text-text-muted font-mono">
+              {analytics?.activeProjects ?? projects.length} Active · {members.length} Team Members
+            </p>
+          </div>
+
+          <div className="bg-surface border border-border p-6 rounded-sm space-y-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted">
+              TOTAL TASKS
+            </span>
+            <div className="text-3xl font-black text-text-primary">
+              {analytics?.totalTasks ?? 0}
+            </div>
+            <p className="text-xs text-text-muted font-mono">
+              {analytics?.completedTasks ?? 0} Completed · {analytics?.inProgressTasks ?? 0} In Progress
+            </p>
+          </div>
+
+          <div className="bg-surface border border-border p-6 rounded-sm space-y-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted">
+              ASSIGNED TO YOU
+            </span>
+            <div className="text-3xl font-black text-primary">
+              {analytics?.assignedToUserTasks ?? 0}
+            </div>
+            <p className="text-xs text-text-muted font-mono">
+              {analytics?.completedThisWeek ?? 0} Tasks Completed This Week
+            </p>
+          </div>
+
+          <div className="bg-surface border border-border p-6 rounded-sm space-y-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted">
+              OVERDUE TASKS
+            </span>
+            <div className={`text-3xl font-black ${(analytics?.overdueTasks ?? 0) > 0 ? 'text-danger' : 'text-success'}`}>
+              {analytics?.overdueTasks ?? 0}
+            </div>
+            <p className="text-xs text-text-muted font-mono">
+              {(analytics?.overdueTasks ?? 0) > 0 ? 'Requires immediate attention' : 'All deadlines on track'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Projects Section */}
+      <div className="bg-surface border border-border rounded-sm p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-0.5">
+              WORKSPACE SCOPE
+            </span>
+            <h2 className="text-xl font-black uppercase text-text-primary">
+              PROJECTS IN {activeWorkspace?.name.toUpperCase()}
+            </h2>
+          </div>
+
+          <button
+            onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/settings`)}
+            className="text-xs font-mono font-bold text-primary hover:text-primary-hover uppercase tracking-wider"
+          >
+            Manage Projects &rarr;
+          </button>
         </div>
 
-        <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-2">
-          PHASE 01 COMPLETE
-        </span>
-        <h2 className="text-2xl font-black uppercase tracking-tight text-text-primary">
-          YOUR BOARD IS READY TO TAKE SHAPE.
-        </h2>
-        <p className="mt-3 text-sm text-text-secondary max-w-md mx-auto leading-relaxed">
-          Authentication is connected. Columns, tasks, and live collaboration arrive in the next build phase.
-        </p>
-
-        {userRole !== 'member' && (
-          <button
-            onClick={() => setIsBoardModalOpen(true)}
-            className="mt-8 flex items-center space-x-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-sm transition-colors shadow-lg"
-          >
-            <span>Create your first board</span>
-            <span>&gt;</span>
-          </button>
+        {projects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {projects.map((proj) => {
+              const metric = analytics?.projectMetrics.find((pm) => pm.id === proj.id);
+              const percentage = metric ? metric.completionPercentage : 0;
+              return (
+                <div
+                  key={proj.id}
+                  onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/projects/${proj.id}`)}
+                  className="bg-surface-hover border border-border hover:border-primary p-4 rounded-sm cursor-pointer transition-colors space-y-3"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="text-base font-black uppercase text-text-primary break-words min-w-0">{proj.name}</h3>
+                    <span className="text-[9px] font-mono font-bold uppercase bg-surface-active px-2 py-0.5 rounded-sm text-text-secondary">
+                      {proj.status}
+                    </span>
+                  </div>
+                  {proj.description && (
+                    <p className="text-xs text-text-muted line-clamp-2">{proj.description}</p>
+                  )}
+                  {metric && (
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[10px] font-mono text-text-muted">
+                        <span>{metric.completedTasks} / {metric.totalTasks} Tasks Done</span>
+                        <span>{percentage}%</span>
+                      </div>
+                      <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-primary h-full transition-all duration-300"
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="pt-1 text-[10px] font-mono text-primary font-bold">
+                    Open Project &rarr;
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            title="No projects yet"
+            description="Create your first project in this workspace to start managing tasks and collaborating with your team."
+            actionLabel={userRole === 'owner' || userRole === 'admin' ? "Manage Projects" : undefined}
+            onAction={() => navigate(`/workspaces/${activeWorkspace?.id}/settings`)}
+          />
         )}
       </div>
     </div>

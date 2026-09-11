@@ -54,6 +54,38 @@ export async function createComment(req: Request, res: Response, next: NextFunct
           );
         }
 
+        // Mention Parsing: notify mentioned project members
+        const projectMembers = await prisma.projectMember.findMany({
+          where: { projectId: project.id },
+          include: { user: true },
+        });
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const mentionedUserIds = new Set<string>();
+
+        for (const pm of projectMembers) {
+          if (pm.userId === userId) continue;
+          const nameMention = `@${pm.user.name.toLowerCase()}`;
+          const emailMention = `@${pm.user.email.toLowerCase()}`;
+          const bodyLower = comment.body.toLowerCase();
+
+          if (bodyLower.includes(nameMention) || bodyLower.includes(emailMention)) {
+            mentionedUserIds.add(pm.userId);
+          }
+        }
+
+        for (const mentionedId of mentionedUserIds) {
+          const shortBody = comment.body.length > 60 ? `${comment.body.slice(0, 60)}...` : comment.body;
+          await notificationService.createNotification(
+            mentionedId,
+            userId,
+            'comment_mention',
+            'You were mentioned',
+            `${user?.name || 'Someone'} mentioned you in a comment on "${task.title}": "${shortBody}"`,
+            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
+          );
+        }
+
         // Broadcast real-time Socket event to the room
         broadcast(`board:${task.boardId}`, 'comment:created', comment);
       }

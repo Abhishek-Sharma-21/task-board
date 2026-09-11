@@ -65,6 +65,11 @@ export const CreateWorkspaceInput = z.object({
 });
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceInput>;
 
+export const UpdateWorkspaceInput = z.object({
+  name: z.string().min(1).max(80),
+});
+export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceInput>;
+
 export const AddMemberInput = z.object({
   email: z.string().email(),
   role: WorkspaceRole.default('member'),
@@ -102,6 +107,18 @@ export const CreateProjectInput = z.object({
   status: ProjectStatus.default('Planning'),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
+
+export const ProjectSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  status: ProjectStatus,
+  workspaceId: z.string(),
+  createdBy: z.string(),
+  createdAt: z.union([z.date(), z.string()]),
+  updatedAt: z.union([z.date(), z.string()]),
+});
+export type Project = z.infer<typeof ProjectSchema>;
 
 // ---------- Board / Column ----------
 export const CreateBoardInput = z.object({
@@ -189,6 +206,17 @@ export const BoardColumnSchema = z.object({
 });
 export type BoardColumn = z.infer<typeof BoardColumnSchema>;
 
+export const ChecklistItemSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  title: z.string(),
+  completed: z.boolean(),
+  position: z.number(),
+  createdAt: z.union([z.date(), z.string()]),
+  updatedAt: z.union([z.date(), z.string()]),
+});
+export type ChecklistItem = z.infer<typeof ChecklistItemSchema>;
+
 export const TaskSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -203,6 +231,8 @@ export const TaskSchema = z.object({
   labels: z.array(z.string()),
   dueDate: z.union([z.date(), z.string()]).nullable().optional(),
   version: z.number(),
+  isArchived: z.boolean().optional(),
+  checklists: z.array(ChecklistItemSchema).optional(),
   createdAt: z.union([z.date(), z.string()]),
   updatedAt: z.union([z.date(), z.string()]),
 });

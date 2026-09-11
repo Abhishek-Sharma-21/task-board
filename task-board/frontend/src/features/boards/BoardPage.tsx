@@ -15,7 +15,7 @@ import { useBoardStore } from './boardStore';
 import { useAuthStore } from '../auth/authStore';
 import { useCommentStore } from '../comments/commentStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
-import { getSocket, connectSocket, disconnectSocket } from '../../sockets/socket';
+import { getSocket, connectSocket } from '../../sockets/socket';
 import { BoardColumn } from './BoardColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDrawer } from './TaskDrawer';
@@ -50,6 +50,11 @@ export const BoardPage: React.FC = () => {
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTaskIdRef = React.useRef<string | null>(selectedTaskId);
+
+  useEffect(() => {
+    selectedTaskIdRef.current = selectedTaskId;
+  }, [selectedTaskId]);
   const [newColName, setNewColName] = useState('');
   const [isAddingCol, setIsAddingCol] = useState(false);
 
@@ -109,7 +114,11 @@ export const BoardPage: React.FC = () => {
         }
 
         // 3. Assignee Match
-        if (selectedAssigneeId !== 'All' && task.assigneeId !== selectedAssigneeId) {
+        if (selectedAssigneeId === 'unassigned') {
+          if (task.assigneeId !== null && task.assigneeId !== undefined && task.assigneeId !== '' && task.assigneeId !== 'unassigned') {
+            return false;
+          }
+        } else if (selectedAssigneeId !== 'All' && task.assigneeId !== selectedAssigneeId) {
           return false;
         }
 
@@ -188,7 +197,7 @@ export const BoardPage: React.FC = () => {
 
     socket.on('task:deleted', (data: { id: string }) => {
       deleteTaskRealtime(data.id);
-      if (selectedTaskId === data.id) {
+      if (selectedTaskIdRef.current === data.id) {
         setSelectedTaskId(null);
       }
     });
@@ -216,7 +225,6 @@ export const BoardPage: React.FC = () => {
       socket.off('board:presence');
       socket.off('board:updated');
       setActiveUsers([]);
-      disconnectSocket();
     };
   // NOTE: selectedTaskId intentionally excluded — it is UI state unrelated to the
   // socket connection. Including it caused listener re-registration on every drawer
@@ -461,7 +469,7 @@ export const BoardPage: React.FC = () => {
 
             {/* Filter Dropdown Popover */}
             {isFilterDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-72 bg-surface-elevated border-2 border-border p-4 rounded-sm shadow-theme-xl z-35 space-y-4 font-sans text-left">
+              <div className="absolute left-0 sm:left-auto right-0 sm:right-auto mt-2 w-72 max-w-[calc(100vw-2.5rem)] bg-surface-elevated border-2 border-border p-4 rounded-sm shadow-theme-xl z-35 space-y-4 font-sans text-left">
                 <div className="flex justify-between items-center border-b border-border pb-2">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary">
                     FILTERS.

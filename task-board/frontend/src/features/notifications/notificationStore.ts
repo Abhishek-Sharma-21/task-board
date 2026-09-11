@@ -25,12 +25,15 @@ interface NotificationState {
   fetchNotifications: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  resetWorkspaceNotifications: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   isLoading: false,
   error: null,
+
+  resetWorkspaceNotifications: () => set({ notifications: [], error: null }),
 
   fetchNotifications: async () => {
     set({ isLoading: true, error: null });
@@ -62,7 +65,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         notifications: state.notifications.map((n) => ({ ...n, read: true })),
       }));
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Failed to mark all as read' });
+      set({ error: err.response?.data?.message || 'Failed to mark all notifications as read' });
     }
   },
 }));

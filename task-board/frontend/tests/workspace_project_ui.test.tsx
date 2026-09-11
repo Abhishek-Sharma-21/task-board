@@ -8,6 +8,7 @@ import { useNotificationStore } from '../src/features/notifications/notification
 import { useActivityStore } from '../src/features/activities/activityStore';
 import { AppLayout } from '../src/layouts/AppLayout';
 import { ActivityPage } from '../src/pages/ActivityPage';
+import { WorkspaceSettingsPage } from '../src/pages/WorkspaceSettingsPage';
 import { api } from '../src/api/client';
 
 // Mock the api client
@@ -38,7 +39,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     vi.clearAllMocks();
     // Setup initial auth state
     useAuthStore.setState({
-      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com' },
+      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com' },
       accessToken: 'token-123',
       isInitialized: true,
     });
@@ -86,7 +87,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
       { id: 'p-2', name: 'Website Redesign', workspaceId: 'ws-1' },
     ];
     const mockMembers = [
-      { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com', role: 'owner' },
+      { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com', role: 'owner' },
     ];
 
     // Mock API resolutions
@@ -126,7 +127,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
       { id: 'p-1', name: 'Launch Control', workspaceId: 'ws-1' },
     ];
     const mockMembers = [
-      { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com', role: 'owner' },
+      { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com', role: 'owner' },
     ];
 
     vi.mocked(api.get).mockImplementation((url: string) => {
@@ -159,8 +160,8 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
 
   it('Opens Team Settings modal and handles invitations, role changes, and member removals for owners', async () => {
     const mockMembers = [
-      { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com', role: 'owner' },
-      { id: 'user-456', name: 'Sarah Connor', email: 'sarah@forgeboard.com', role: 'member' },
+      { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com', role: 'owner' },
+      { id: 'user-456', name: 'Sarah Connor', email: 'sarah@taskboard.com', role: 'member' },
     ];
 
     useWorkspaceStore.setState({
@@ -170,6 +171,9 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     });
 
     vi.mocked(api.get).mockImplementation((url: string) => {
+      if (url === '/workspaces') {
+        return Promise.resolve({ data: { success: true, data: [{ id: 'ws-1', name: 'Northstar Studio', ownerId: 'user-123' }] } });
+      }
       if (url === '/workspaces/ws-1/members') {
         return Promise.resolve({ data: { success: true, data: mockMembers } });
       }
@@ -207,7 +211,8 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     });
 
     // 3. Change member role (Sarah Connor)
-    const select = screen.getAllByRole('combobox')[1];
+    const comboboxes = screen.getAllByRole('combobox');
+    const select = comboboxes[comboboxes.length - 1];
     fireEvent.change(select, { target: { value: 'admin' } });
 
     await waitFor(() => {
@@ -229,8 +234,8 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
 
   it('Loads notifications list, renders bell badge count, and handles mark as read / mark all as read triggers', async () => {
     const mockNotifications = [
-      { id: 'notif-1', userId: 'user-123', sender: { id: 'user-456', name: 'Sarah Connor', email: 'sarah@forgeboard.com' }, type: 'task_assigned', title: 'Task Assigned', message: 'Sarah assigned you a task', read: false, link: '/workspaces/ws-1/projects/p-1', createdAt: new Date().toISOString() },
-      { id: 'notif-2', userId: 'user-123', sender: { id: 'user-456', name: 'Sarah Connor', email: 'sarah@forgeboard.com' }, type: 'task_assigned', title: 'Task Assigned', message: 'Sarah assigned you another task', read: false, link: '/workspaces/ws-1/projects/p-1', createdAt: new Date().toISOString() },
+      { id: 'notif-1', userId: 'user-123', sender: { id: 'user-456', name: 'Sarah Connor', email: 'sarah@taskboard.com' }, type: 'task_assigned', title: 'Task Assigned', message: 'Sarah assigned you a task', read: false, link: '/workspaces/ws-1/projects/p-1', createdAt: new Date().toISOString() },
+      { id: 'notif-2', userId: 'user-123', sender: { id: 'user-456', name: 'Sarah Connor', email: 'sarah@taskboard.com' }, type: 'task_assigned', title: 'Task Assigned', message: 'Sarah assigned you another task', read: false, link: '/workspaces/ws-1/projects/p-1', createdAt: new Date().toISOString() },
     ];
 
     useWorkspaceStore.setState({
@@ -290,7 +295,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
 
   it('Navigates to Activity History page and displays workspace activity logs correctly', async () => {
     const mockActivities = [
-      { id: 'act-1', workspaceId: 'ws-1', action: 'Created Task "Design Mockups"', description: 'Sarah Connor created task', user: { id: 'user-456', name: 'Sarah Connor', email: 'sarah@forgeboard.com' }, createdAt: new Date().toISOString() },
+      { id: 'act-1', workspaceId: 'ws-1', action: 'Created Task "Design Mockups"', description: 'Sarah Connor created task', user: { id: 'user-456', name: 'Sarah Connor', email: 'sarah@taskboard.com' }, createdAt: new Date().toISOString() },
     ];
 
     useWorkspaceStore.setState({
@@ -306,8 +311,14 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     });
 
     vi.mocked(api.get).mockImplementation((url: string) => {
-      if (url === '/workspaces/ws-1/activity') {
-        return Promise.resolve({ data: { success: true, data: mockActivities } });
+      if (url.startsWith('/workspaces/ws-1/activity')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: mockActivities,
+            meta: { totalCount: 1, page: 1, totalPages: 1 },
+          },
+        });
       }
       return Promise.resolve({ data: { success: true, data: [] } });
     });
@@ -350,7 +361,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
       workspaces: [{ id: 'ws-1', name: 'Northstar Studio', ownerId: 'user-other' }],
       activeWorkspace: { id: 'ws-1', name: 'Northstar Studio', ownerId: 'user-other' },
       members: [
-        { id: 'user-123', name: 'Abhishek Sharma', email: 'member@forgeboard.com', role: 'member' },
+        { id: 'user-123', name: 'Abhishek Sharma', email: 'member@taskboard.com', role: 'member' },
       ],
     });
 
@@ -365,5 +376,26 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     expect(screen.queryByRole('button', { name: /New Board/i })).not.toBeInTheDocument();
     // But workspace creator button is shown
     expect(screen.getByRole('button', { name: /New Workspace/i })).toBeInTheDocument();
+  });
+
+  it('Displays 403 Unauthorized Access banner on WorkspaceSettingsPage for regular members', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws-1', name: 'Northstar Studio', ownerId: 'user-other' }],
+      activeWorkspace: { id: 'ws-1', name: 'Northstar Studio', ownerId: 'user-other' },
+      members: [
+        { id: 'user-123', name: 'Abhishek Sharma', email: 'member@taskboard.com', role: 'member' },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/workspaces/ws-1/settings']}>
+        <Routes>
+          <Route path="/workspaces/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('403 Unauthorized Access')).toBeInTheDocument();
+    expect(screen.getByText(/Workspace Settings are restricted to Workspace Owners and Admins only/i)).toBeInTheDocument();
   });
 });

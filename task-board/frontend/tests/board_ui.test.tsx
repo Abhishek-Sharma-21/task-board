@@ -27,7 +27,7 @@ describe('Kanban Board Page & Stores integration tests', () => {
 
     // Set mock authenticated user
     useAuthStore.setState({
-      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@forgeboard.com' },
+      user: { id: 'user-123', name: 'Abhishek Sharma', email: 'owner@taskboard.com' },
       accessToken: 'token-123',
       isInitialized: true,
     });

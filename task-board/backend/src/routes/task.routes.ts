@@ -63,4 +63,53 @@ router.delete(
   controller.deleteTask
 );
 
+// PATCH, POST, PUT /api/tasks/:id/archive - Archive / Restore task
+router.patch(
+  '/tasks/:id/archive',
+  authenticate,
+  csrfProtection,
+  requireTaskRole('member', 'id'),
+  controller.archiveTask
+);
+router.post(
+  '/tasks/:id/archive',
+  authenticate,
+  csrfProtection,
+  requireTaskRole('member', 'id'),
+  controller.archiveTask
+);
+router.put(
+  '/tasks/:id/archive',
+  authenticate,
+  csrfProtection,
+  requireTaskRole('member', 'id'),
+  controller.archiveTask
+);
+
+// Checklist routes
+// POST /api/tasks/:taskId/checklists - Add checklist item
+router.post(
+  '/tasks/:taskId/checklists',
+  authenticate,
+  csrfProtection,
+  requireTaskRole('member', 'taskId'),
+  controller.addChecklistItem
+);
+
+// PATCH /api/checklists/:itemId - Update checklist item
+router.patch(
+  '/checklists/:itemId',
+  authenticate,
+  csrfProtection,
+  controller.updateChecklistItem
+);
+
+// DELETE /api/checklists/:itemId - Delete checklist item
+router.delete(
+  '/checklists/:itemId',
+  authenticate,
+  csrfProtection,
+  controller.deleteChecklistItem
+);
+
 export default router;

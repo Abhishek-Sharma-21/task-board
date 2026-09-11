@@ -5,10 +5,10 @@ export const InitialLoadingScreen: React.FC = () => {
     <div className="min-h-screen bg-page text-text-primary font-sans flex flex-col items-center justify-center space-y-6">
       <div className="flex flex-col items-center space-y-3">
         <div className="w-12 h-12 bg-primary flex items-center justify-center rounded-sm font-black text-2xl text-white shadow-lg">
-          F
+          T
         </div>
         <span className="text-lg font-black tracking-widest text-text-primary uppercase font-sans">
-          ForgeBoard
+          Task Board
         </span>
       </div>
 

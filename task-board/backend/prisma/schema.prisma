@@ -25,15 +25,16 @@ model User {
 }
 
 model Workspace {
-  id               String            @id @default(uuid())
-  name             String
-  ownerId          String
-  owner            User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members          WorkspaceMember[]
-  projects         Project[]
-  activities       Activity[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                    String            @id @default(uuid())
+  name                  String
+  ownerId               String
+  activityRetentionDays Int               @default(30)
+  owner                 User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members               WorkspaceMember[]
+  projects              Project[]
+  activities            Activity[]
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 }
 
 model WorkspaceMember {
@@ -102,28 +103,43 @@ model BoardColumn {
 }
 
 model Task {
-  id          String       @id @default(uuid())
+  id          String          @id @default(uuid())
   title       String
-  description String       @default("")
+  description String          @default("")
   projectId   String
   boardId     String
   columnId    String
-  column      BoardColumn  @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  column      BoardColumn     @relation(fields: [columnId], references: [id], onDelete: Cascade)
   position    Int
-  priority    String       @default("Medium") // "Low", "Medium", "High", "Urgent"
+  priority    String          @default("Medium") // "Low", "Medium", "High", "Urgent"
   assigneeId  String?
   createdBy   String
   labels      String[]
   dueDate     DateTime?
-  version     Int          @default(0)
+  version     Int             @default(0)
+  isArchived  Boolean         @default(false)
   comments    Comment[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  checklists  ChecklistItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([boardId])
   @@index([columnId])
   @@index([projectId])
   @@index([assigneeId])
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  completed Boolean  @default(false)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId])
 }
 
 model Comment {

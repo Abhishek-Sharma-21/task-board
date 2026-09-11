@@ -75,7 +75,7 @@ describe('Socket.IO Real-Time Collaboration Integration', () => {
       .set('Authorization', `Bearer ${userA.token}`)
       .set('Cookie', userA.csrfCookie)
       .set('x-csrf-token', userA.csrfToken)
-      .send({ name: 'Project X' });
+      .send({ name: 'Project X', memberUserIds: [userB.userId] });
     const projectId = projRes.body.data.id;
 
     // Create board

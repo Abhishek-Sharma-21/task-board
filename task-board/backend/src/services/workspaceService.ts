@@ -11,6 +11,7 @@ export interface WorkspaceData {
   id: string;
   name: string;
   ownerId: string;
+  activityRetentionDays?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -162,6 +163,73 @@ export async function updateMemberRole(
   } catch (err) {
     throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Member not found in workspace');
   }
+}
+
+export async function updateWorkspace(
+  workspaceId: string,
+  data: { name?: string; activityRetentionDays?: number }
+): Promise<WorkspaceData> {
+  if (!isValidId(workspaceId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid workspace ID');
+  }
+
+  try {
+    const ws = await prisma.workspace.update({
+      where: { id: workspaceId },
+      data,
+    });
+    return ws as WorkspaceData;
+  } catch (err) {
+    throw new HttpError(404, 'WORKSPACE_NOT_FOUND', 'Workspace not found');
+  }
+}
+
+export async function deleteWorkspace(
+  workspaceId: string,
+  requestingUserId: string
+): Promise<void> {
+  if (!isValidId(workspaceId) || !isValidId(requestingUserId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid workspace or user ID');
+  }
+
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) {
+    throw new HttpError(404, 'WORKSPACE_NOT_FOUND', 'Workspace not found');
+  }
+
+  if (workspace.ownerId !== requestingUserId) {
+    throw new HttpError(403, 'FORBIDDEN', 'Only workspace owner can delete workspace');
+  }
+
+  await prisma.workspace.delete({ where: { id: workspaceId } });
+}
+
+export async function leaveWorkspace(
+  workspaceId: string,
+  userId: string
+): Promise<void> {
+  if (!isValidId(workspaceId) || !isValidId(userId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid workspace or user ID');
+  }
+
+  const member = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId } },
+  });
+
+  if (!member) {
+    throw new HttpError(404, 'MEMBER_NOT_FOUND', 'You are not a member of this workspace');
+  }
+
+  if (member.role === 'owner') {
+    const otherOwnersCount = await prisma.workspaceMember.count({
+      where: { workspaceId, role: 'owner', NOT: { userId } },
+    });
+    if (otherOwnersCount === 0) {
+      throw new HttpError(400, 'SOLE_OWNER', 'Sole owner cannot leave workspace. Transfer ownership or delete workspace.');
+    }
+  }
+
+  await removeMemberFromWorkspace(workspaceId, userId);
 }
 
 export async function getWorkspaceMembers(

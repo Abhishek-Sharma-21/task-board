@@ -37,14 +37,14 @@ const RegisterPage: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-page">
       {/* Left Panel: Dark Brand Showcase */}
-      <div className="w-full md:w-1/2 flex flex-col justify-between p-8 md:p-12 bg-sidebar text-text-primary border-b md:border-b-0 md:border-r border-border-subtle">
+      <div className="w-full md:w-1/2 flex flex-col justify-between p-6 sm:p-8 md:p-12 bg-sidebar text-text-primary border-b md:border-b-0 md:border-r border-border-subtle">
         {/* Brand Header */}
         <div className="flex items-center space-x-2">
           <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-sm text-white">
-            F
+            T
           </div>
           <span className="text-sm font-black tracking-widest text-text-primary uppercase">
-            ForgeBoard
+            Task Board
           </span>
         </div>
 
@@ -53,7 +53,7 @@ const RegisterPage: React.FC = () => {
           <span className="text-xs uppercase font-mono tracking-widest text-text-muted block mb-4">
             COLLABORATION, SHARPENED
           </span>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none select-none">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none select-none">
             START YOUR <br />
             <span className="text-primary">JOURNEY.</span>
           </h1>
@@ -71,7 +71,7 @@ const RegisterPage: React.FC = () => {
       </div>
 
       {/* Right Panel: Form Input */}
-      <div className="w-full md:w-1/2 flex flex-col justify-center bg-page p-8 md:p-16">
+      <div className="w-full md:w-1/2 flex flex-col justify-center bg-page p-6 sm:p-8 md:p-16">
         <div className="max-w-md w-full mx-auto space-y-8">
           <div>
             <span className="text-xs uppercase font-mono tracking-widest text-text-muted block mb-1">
@@ -81,7 +81,7 @@ const RegisterPage: React.FC = () => {
               CREATE ACCOUNT.
             </h2>
             <p className="mt-2 text-sm text-text-tertiary font-medium">
-              Join ForgeBoard to manage and sync tasks in real time.
+              Join Task Board to manage and sync tasks in real time.
             </p>
           </div>
 

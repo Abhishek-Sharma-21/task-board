@@ -16,7 +16,7 @@ interface BoardColumnProps {
   onTaskClick: (task: Task) => void;
 }
 
-export const BoardColumn: React.FC<BoardColumnProps> = ({
+const BoardColumnComponent: React.FC<BoardColumnProps> = ({
   column,
   tasks,
   canManageColumns = false,
@@ -59,7 +59,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   };
 
   return (
-    <div className="flex flex-col w-[300px] shrink-0 border-2 border-border bg-kanban-column min-h-[500px] rounded-sm">
+    <div className="flex flex-col w-[280px] sm:w-[300px] shrink-0 border-2 border-border bg-kanban-column min-h-[500px] rounded-sm">
       {/* Column Header */}
       <div className="flex items-center justify-between p-3 border-b-2 border-border bg-surface-hover">
         <div className="flex-1 mr-2">
@@ -102,46 +102,40 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
         )}
       </div>
 
-      {/* Tasks List */}
-      <div
-        ref={setNodeRef}
-        className="flex-1 p-3 overflow-y-auto space-y-3 min-h-[300px]"
-      >
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
+      {/* Task list droppable container */}
+      <div ref={setNodeRef} className="flex-1 p-3 space-y-3 overflow-y-auto max-h-[70vh]">
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
-              onClick={() => onTaskClick(task)}
               isDragDisabled={isDragDisabled}
+              onClick={() => onTaskClick(task)}
             />
           ))}
         </SortableContext>
       </div>
 
-      {/* Add Task footer trigger */}
-      <div className="p-3 border-t border-border">
+      {/* Add Task Button & Form Footer */}
+      <div className="p-3 border-t border-border bg-surface-hover">
         {isAdding ? (
           <form onSubmit={handleAddTaskSubmit} className="space-y-2">
             <input
               type="text"
-              placeholder="ENTER TASK TITLE..."
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
-              className="w-full bg-input border border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary"
+              placeholder="ENTER TASK TITLE..."
+              className="w-full bg-input border border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm"
               autoFocus
             />
             <div className="flex space-x-2">
               <button
                 type="submit"
-                disabled={isSubmittingTask || !taskTitle.trim()}
-                className="flex-1 bg-primary hover:bg-primary-hover disabled:opacity-60 text-white text-[10px] font-bold uppercase tracking-wider py-1.5 rounded-sm transition-colors flex items-center justify-center gap-1.5"
+                disabled={!taskTitle.trim() || isSubmittingTask}
+                className="flex-1 bg-primary hover:bg-primary-hover disabled:bg-surface-active text-white text-[10px] font-bold uppercase tracking-wider py-1.5 rounded-sm transition-colors flex items-center justify-center space-x-1"
               >
-                {isSubmittingTask && <Spinner />}
-                {isSubmittingTask ? 'Creating...' : 'Create'}
+                {isSubmittingTask && <Spinner size="sm" />}
+                <span>Create</span>
               </button>
               <button
                 type="button"
@@ -166,3 +160,5 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
     </div>
   );
 };
+
+export const BoardColumn = React.memo(BoardColumnComponent);

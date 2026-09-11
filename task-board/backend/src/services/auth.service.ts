@@ -45,21 +45,15 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
     throw new HttpError(409, 'EMAIL_TAKEN', 'Email already in use');
   }
   const passwordHash = await hashPassword(input.password);
+  const newUserId = randomUUID();
+  const tokens = await issueTokens(newUserId);
   const user = await prisma.user.create({
     data: {
+      id: newUserId,
       name: input.name,
       email,
       passwordHash,
-      refreshTokenJtis: [],
-    },
-  });
-  const tokens = await issueTokens(user.id);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      refreshTokenJtis: {
-        set: [tokens.jti],
-      },
+      refreshTokenJtis: [tokens.jti],
     },
   });
   return { user: toPublic(user), ...tokens };

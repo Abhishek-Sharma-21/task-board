@@ -31,3 +31,4 @@ Thumbs.db
 frontend/dist/
 backend/dist/
 shared/dist/
+*.tsbuildinfo

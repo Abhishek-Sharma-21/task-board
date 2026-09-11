@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/authStore';
 import { useWorkspaceStore } from '../features/workspaces/workspaceStore';
 import { useProjectStore } from '../features/projects/projectStore';
 import { useBoardStore } from '../features/boards/boardStore';
 import { useNotificationStore } from '../features/notifications/notificationStore';
 import { useThemeStore } from '../stores/themeStore';
-import { disconnectSocket } from '../sockets/socket';
+import { connectSocket, disconnectSocket } from '../sockets/socket';
 import { Spinner } from '../components/Spinner';
 
 export const AppLayout: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
+  const location = useLocation();
   const { workspaceId, projectId, boardId } = useParams<{ workspaceId: string; projectId: string; boardId: string }>();
 
-  // Modals state
+  // Modals & Navigation state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
@@ -87,6 +89,7 @@ export const AppLayout: React.FC = () => {
 
   useEffect(() => {
     if (user) {
+      connectSocket();
       fetchNotifications();
     }
   }, [user, fetchNotifications]);
@@ -122,6 +125,26 @@ export const AppLayout: React.FC = () => {
     }
   }, [boardId, boards, activeBoard, selectBoard]);
 
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Close modals on Escape keypress
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMobileSidebarOpen(false);
+        setIsWorkspaceModalOpen(false);
+        setIsProjectModalOpen(false);
+        setIsBoardModalOpen(false);
+        setIsTeamModalOpen(false);
+        setIsNotificationOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
 
 
   const handleLogout = async () => {
@@ -151,12 +174,20 @@ export const AppLayout: React.FC = () => {
     }
   };
 
+  const [projectHeadInput, setProjectHeadInput] = useState('');
+
   const submitCreateProject = async () => {
     if (!activeWorkspace || !projectNameInput?.trim() || isCreatingProject) return;
     setIsCreatingProject(true);
     try {
-      const proj = await createProject(activeWorkspace.id, projectNameInput.trim());
+      const proj = await createProject(
+        activeWorkspace.id,
+        projectNameInput.trim(),
+        '',
+        projectHeadInput || undefined
+      );
       setProjectNameInput('');
+      setProjectHeadInput('');
       setIsProjectModalOpen(false);
       navigate(`/workspaces/${activeWorkspace.id}/projects/${proj.id}`);
     } catch (err: any) {
@@ -239,17 +270,25 @@ export const AppLayout: React.FC = () => {
   const { theme, toggleTheme } = useThemeStore();
 
   return (
-    <div className="min-h-screen flex bg-page text-text-primary font-sans relative">
+    <div className="min-h-screen flex bg-page text-text-primary font-sans relative overflow-x-hidden">
+      {/* Mobile Drawer Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-overlay backdrop-blur-xs z-40 md:hidden"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-sidebar border-r border-border flex flex-col justify-between p-6 overflow-y-auto">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-border flex flex-col justify-between p-6 overflow-y-auto transform transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="space-y-8">
           {/* Logo */}
           <div className="flex items-center space-x-2" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-sm text-white">
-              F
+              T
             </div>
             <span className="text-sm font-black tracking-widest text-text-primary uppercase">
-              ForgeBoard
+              Task Board
             </span>
           </div>
 
@@ -376,11 +415,18 @@ export const AppLayout: React.FC = () => {
               <span>Home Overview</span>
             </button>
             <button
+              onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/settings`)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+            >
+              <span>Workspace Settings</span>
+              <span className="text-[9px] font-mono bg-primary-light text-primary px-1 py-0.5 rounded-sm font-bold">CONFIG</span>
+            </button>
+            <button
               onClick={() => setIsTeamModalOpen(true)}
               className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
             >
               <span>Team Settings</span>
-              <span className="text-[9px] font-mono bg-primary-light text-primary px-1 py-0.5 rounded-sm">MEMBERS</span>
+              <span className="text-[9px] font-mono bg-surface text-text-muted px-1 py-0.5 rounded-sm">MEMBERS</span>
             </button>
             <button
               onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/activity`)}
@@ -430,21 +476,33 @@ export const AppLayout: React.FC = () => {
       </aside>
 
       {/* Main Body Panel */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header Bar */}
-        <header className="h-16 bg-header border-b border-border flex items-center justify-between px-8">
-          <div>
-            <span className="text-[10px] uppercase font-mono tracking-widest text-text-faint block">
-              PROJECT / PRODUCT
-            </span>
-            <span className="text-sm font-black uppercase tracking-tight text-text-primary">
-              {activeProject?.name || 'Select Project'}
-            </span>
+        <header className="h-16 bg-header border-b border-border flex items-center justify-between px-4 sm:px-6 md:px-8 gap-3">
+          <div className="flex items-center space-x-3 min-w-0">
+            {/* Mobile Sidebar Hamburger Toggle */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+              className="p-1.5 text-text-muted hover:text-text-primary border border-border rounded-sm md:hidden shrink-0"
+              aria-label="Open Navigation Menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="truncate">
+              <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-widest text-text-faint block leading-tight">
+                PROJECT / PRODUCT
+              </span>
+              <span className="text-xs sm:text-sm font-black uppercase tracking-tight text-text-primary truncate block">
+                {activeProject?.name || 'Select Project'}
+              </span>
+            </div>
           </div>
 
           {/* Header Actions Panel */}
           {user && (
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3 sm:space-x-6 shrink-0">
               {/* Notification Bell Icon */}
               <div className="relative">
                 <button
@@ -464,7 +522,7 @@ export const AppLayout: React.FC = () => {
 
                 {/* Notification Dropdown List */}
                 {isNotificationOpen && (
-                  <div className="absolute right-0 mt-3 w-80 bg-surface-elevated border border-border rounded-sm shadow-theme-xl z-50 overflow-hidden font-sans">
+                  <div className="absolute right-0 mt-3 w-72 sm:w-80 bg-surface-elevated border border-border rounded-sm shadow-theme-xl z-50 overflow-hidden font-sans max-w-[calc(100vw-2rem)]">
                     <div className="p-3 border-b border-border flex justify-between items-center bg-surface-hover">
                       <span className="text-[10px] uppercase font-mono tracking-wider font-bold text-text-muted">
                         Notifications
@@ -524,14 +582,14 @@ export const AppLayout: React.FC = () => {
               </div>
 
               {/* User Profile Badge */}
-              <div className="flex items-center space-x-3 bg-surface-hover border border-border py-1.5 pl-2.5 pr-3 rounded-sm">
-                <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-xs text-white font-mono">
+              <div className="flex items-center space-x-2 sm:space-x-3 bg-surface-hover border border-border py-1.5 px-2.5 rounded-sm shrink-0">
+                <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-xs text-white font-mono shrink-0">
                   {getInitials(user.name)}
                 </div>
-                <span className="text-xs font-bold text-text-secondary">
+                <span className="text-xs font-bold text-text-secondary hidden sm:inline truncate max-w-[100px] md:max-w-[140px]">
                   {user.name}
                 </span>
-                <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase">
+                <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase shrink-0">
                   {userRole}
                 </span>
               </div>
@@ -540,15 +598,21 @@ export const AppLayout: React.FC = () => {
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-12">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-12">
           <Outlet context={{ setIsBoardModalOpen }} />
         </main>
       </div>
 
       {/* Workspace Custom Modal */}
       {isWorkspaceModalOpen && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6">
+        <div 
+          onClick={() => setIsWorkspaceModalOpen(false)}
+          className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6"
+          >
             <div>
               <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
                 CREATE NEW
@@ -557,7 +621,7 @@ export const AppLayout: React.FC = () => {
                 NEW WORKSPACE.
               </h3>
             </div>
-            <div className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); submitCreateWorkspace(); }} className="space-y-4">
               <div>
                 <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
                   Workspace Name *
@@ -573,6 +637,7 @@ export const AppLayout: React.FC = () => {
               </div>
               <div className="flex space-x-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => setIsWorkspaceModalOpen(false)}
                   disabled={isCreatingWorkspace}
                   className="flex-1 py-2 px-4 border border-border text-xs font-bold uppercase tracking-wider rounded-sm text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-50"
@@ -580,7 +645,7 @@ export const AppLayout: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={submitCreateWorkspace}
+                  type="submit"
                   disabled={isCreatingWorkspace || !workspaceNameInput.trim()}
                   className="flex-1 py-2 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-sm text-white transition-colors flex items-center justify-center gap-2"
                 >
@@ -588,15 +653,21 @@ export const AppLayout: React.FC = () => {
                   {isCreatingWorkspace ? 'Creating...' : 'Create'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Project Custom Modal */}
       {isProjectModalOpen && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6">
+        <div 
+          onClick={() => setIsProjectModalOpen(false)}
+          className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6"
+          >
             <div>
               <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
                 CREATE NEW
@@ -605,7 +676,7 @@ export const AppLayout: React.FC = () => {
                 NEW PROJECT.
               </h3>
             </div>
-            <div className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); submitCreateProject(); }} className="space-y-4">
               <div>
                 <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
                   Project Name *
@@ -621,6 +692,7 @@ export const AppLayout: React.FC = () => {
               </div>
               <div className="flex space-x-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => setIsProjectModalOpen(false)}
                   disabled={isCreatingProject}
                   className="flex-1 py-2 px-4 border border-border text-xs font-bold uppercase tracking-wider rounded-sm text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-50"
@@ -628,7 +700,7 @@ export const AppLayout: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={submitCreateProject}
+                  type="submit"
                   disabled={isCreatingProject || !projectNameInput.trim()}
                   className="flex-1 py-2 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-sm text-white transition-colors flex items-center justify-center gap-2"
                 >
@@ -636,15 +708,21 @@ export const AppLayout: React.FC = () => {
                   {isCreatingProject ? 'Creating...' : 'Create'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Board Custom Modal */}
       {isBoardModalOpen && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6">
+        <div 
+          onClick={() => setIsBoardModalOpen(false)}
+          className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6"
+          >
             <div>
               <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
                 CREATE NEW
@@ -653,7 +731,7 @@ export const AppLayout: React.FC = () => {
                 NEW BOARD.
               </h3>
             </div>
-            <div className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); submitCreateBoard(); }} className="space-y-4">
               <div>
                 <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
                   Board Name *
@@ -680,6 +758,7 @@ export const AppLayout: React.FC = () => {
               </div>
               <div className="flex space-x-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => setIsBoardModalOpen(false)}
                   disabled={isCreatingBoard}
                   className="flex-1 py-2 px-4 border border-border text-xs font-bold uppercase tracking-wider rounded-sm text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-50"
@@ -687,7 +766,7 @@ export const AppLayout: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={submitCreateBoard}
+                  type="submit"
                   disabled={isCreatingBoard || !boardNameInput.trim()}
                   className="flex-1 py-2 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-sm text-white transition-colors flex items-center justify-center gap-2"
                 >
@@ -695,15 +774,21 @@ export const AppLayout: React.FC = () => {
                   {isCreatingBoard ? 'Creating...' : 'Create'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Team Settings Custom Modal */}
       {isTeamModalOpen && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-2xl space-y-6 max-h-[85vh] overflow-y-auto">
+        <div 
+          onClick={() => setIsTeamModalOpen(false)}
+          className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-2xl space-y-6 max-h-[85vh] overflow-y-auto"
+          >
             {/* Header */}
             <div className="flex justify-between items-start">
               <div>
@@ -774,8 +859,8 @@ export const AppLayout: React.FC = () => {
               <span className="text-[10px] uppercase font-mono tracking-wider text-text-muted block">
                 Members List ({members.length})
               </span>
-              <div className="border border-border rounded-sm overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs font-mono">
+              <div className="border border-border rounded-sm overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-mono min-w-[500px]">
                   <thead>
                     <tr className="bg-surface-hover border-b border-border text-text-muted uppercase tracking-widest text-[9px]">
                       <th className="py-2.5 px-3">User</th>

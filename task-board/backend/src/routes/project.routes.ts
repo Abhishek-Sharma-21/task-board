@@ -8,12 +8,12 @@ import { validateBody } from '../validators/index.js';
 const router = Router();
 
 // Workspace-scoped project routes
-// POST /api/workspaces/:workspaceId/projects - Create a new project (Owner only)
+// POST /api/workspaces/:workspaceId/projects - Create a new project (Admin/Owner)
 router.post(
   '/workspaces/:workspaceId/projects',
   authenticate,
   csrfProtection,
-  requireWorkspaceRole('owner', 'workspaceId'),
+  requireWorkspaceRole('admin', 'workspaceId'),
   validateBody(CreateProjectInput),
   controller.createProject
 );

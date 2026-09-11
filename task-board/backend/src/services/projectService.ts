@@ -23,34 +23,116 @@ export async function createProject(
   userId: string,
   name: string,
   description: string = '',
-  status: 'Planning' | 'Active' | 'Completed' | 'Archived' = 'Planning'
+  status: 'Planning' | 'Active' | 'Completed' | 'Archived' = 'Planning',
+  headUserId?: string,
+  memberUserIds: string[] = []
 ): Promise<ProjectData> {
   if (!isValidId(workspaceId) || !isValidId(userId)) {
     throw new HttpError(400, 'INVALID_INPUT', 'Invalid workspace or user ID');
   }
 
-  const project = await prisma.project.create({
-    data: {
-      name,
-      description,
-      status,
-      workspaceId,
-      createdBy: userId,
-    },
+  // Validate that all specified team members belong to the workspace
+  const userIdsToCheck = new Set<string>();
+  if (headUserId && isValidId(headUserId)) userIdsToCheck.add(headUserId);
+  for (const mId of memberUserIds) {
+    if (isValidId(mId)) userIdsToCheck.add(mId);
+  }
+
+  if (userIdsToCheck.size > 0) {
+    const wsMemberships = await prisma.workspaceMember.findMany({
+      where: {
+        workspaceId,
+        userId: { in: Array.from(userIdsToCheck) },
+      },
+    });
+
+    if (wsMemberships.length !== userIdsToCheck.size) {
+      throw new HttpError(400, 'NOT_WORKSPACE_MEMBER', 'All project team members must belong to the workspace');
+    }
+  }
+
+  const project = await prisma.$transaction(async (tx) => {
+    const p = await tx.project.create({
+      data: {
+        name,
+        description,
+        status,
+        workspaceId,
+        createdBy: userId,
+      },
+    });
+
+    if (headUserId && isValidId(headUserId)) {
+      await tx.projectMember.create({
+        data: {
+          projectId: p.id,
+          userId: headUserId,
+          role: 'head',
+        },
+      });
+    }
+
+    const uniqueMemberIds = memberUserIds.filter(
+      (mId) => isValidId(mId) && mId !== headUserId
+    );
+
+    for (const mId of uniqueMemberIds) {
+      await tx.projectMember.create({
+        data: {
+          projectId: p.id,
+          userId: mId,
+          role: 'member',
+        },
+      });
+    }
+
+    return p;
   });
 
   return project as ProjectData;
 }
 
 export async function getProjectsForWorkspace(
-  workspaceId: string
+  workspaceId: string,
+  userId?: string
 ): Promise<ProjectData[]> {
   if (!isValidId(workspaceId)) {
     return [];
   }
-  const projects = await prisma.project.findMany({
-    where: { workspaceId },
+
+  if (!userId || !isValidId(userId)) {
+    const projects = await prisma.project.findMany({
+      where: { workspaceId },
+    });
+    return projects as ProjectData[];
+  }
+
+  const wsMember = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId } },
   });
+
+  if (!wsMember) {
+    return [];
+  }
+
+  // Workspace Owners and Admins can see all projects in the workspace
+  if (wsMember.role === 'owner' || wsMember.role === 'admin') {
+    const projects = await prisma.project.findMany({
+      where: { workspaceId },
+    });
+    return projects as ProjectData[];
+  }
+
+  // Regular workspace members only see projects they are assigned to
+  const projects = await prisma.project.findMany({
+    where: {
+      workspaceId,
+      members: {
+        some: { userId },
+      },
+    },
+  });
+
   return projects as ProjectData[];
 }
 

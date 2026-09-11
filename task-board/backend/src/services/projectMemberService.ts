@@ -45,27 +45,37 @@ export async function addMemberToProject(
   const existing = await prisma.projectMember.findUnique({
     where: { projectId_userId: { projectId, userId } },
   });
-  if (existing) {
-    throw new HttpError(409, 'ALREADY_A_MEMBER', 'User is already a member of this project');
-  }
 
-  if (role === 'head') {
-    const currentHead = await prisma.projectMember.findFirst({
-      where: { projectId, role: 'head' },
-    });
-    if (currentHead) {
-      await prisma.projectMember.update({
-        where: { id: currentHead.id },
-        data: { role: 'member' },
+  return prisma.$transaction(async (tx) => {
+    if (role === 'head') {
+      const currentHead = await tx.projectMember.findFirst({
+        where: { projectId, role: 'head' },
       });
+      if (currentHead && currentHead.userId !== userId) {
+        await tx.projectMember.update({
+          where: { id: currentHead.id },
+          data: { role: 'member' },
+        });
+      }
     }
-  }
 
-  const member = await prisma.projectMember.create({
-    data: { projectId, userId, role },
+    if (existing) {
+      if (existing.role === role) {
+        return existing as ProjectMemberData;
+      }
+      const updated = await tx.projectMember.update({
+        where: { id: existing.id },
+        data: { role },
+      });
+      return updated as ProjectMemberData;
+    }
+
+    const member = await tx.projectMember.create({
+      data: { projectId, userId, role },
+    });
+
+    return member as ProjectMemberData;
   });
-
-  return member as ProjectMemberData;
 }
 
 export async function removeMemberFromProject(
@@ -98,29 +108,45 @@ export async function setProjectHead(
     throw new HttpError(404, 'PROJECT_NOT_FOUND', 'Project not found');
   }
 
-  const membership = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId } },
+  const isWsMember = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
   });
-  if (!membership) {
-    throw new HttpError(404, 'NOT_PROJECT_MEMBER', 'User must be a project member to become head');
+  if (!isWsMember) {
+    throw new HttpError(403, 'NOT_WORKSPACE_MEMBER', 'The new Project Head must belong to the project workspace');
   }
 
-  const currentHead = await prisma.projectMember.findFirst({
-    where: { projectId, role: 'head' },
-  });
-  if (currentHead && currentHead.userId !== userId) {
-    await prisma.projectMember.update({
-      where: { id: currentHead.id },
-      data: { role: 'member' },
+  return prisma.$transaction(async (tx) => {
+    const currentHead = await tx.projectMember.findFirst({
+      where: { projectId, role: 'head' },
     });
-  }
+    if (currentHead && currentHead.userId !== userId) {
+      await tx.projectMember.update({
+        where: { id: currentHead.id },
+        data: { role: 'member' },
+      });
+    }
 
-  const updated = await prisma.projectMember.update({
-    where: { id: membership.id },
-    data: { role: 'head' },
+    const membership = await tx.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+    });
+
+    if (membership) {
+      const updated = await tx.projectMember.update({
+        where: { id: membership.id },
+        data: { role: 'head' },
+      });
+      return updated as ProjectMemberData;
+    } else {
+      const newHeadMember = await tx.projectMember.create({
+        data: {
+          projectId,
+          userId,
+          role: 'head',
+        },
+      });
+      return newHeadMember as ProjectMemberData;
+    }
   });
-
-  return updated as ProjectMemberData;
 }
 
 export async function getProjectMembers(

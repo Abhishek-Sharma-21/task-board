@@ -1,10 +1,15 @@
 import { create } from 'zustand';
 import { api } from '../../api/client';
+import { useProjectStore } from '../projects/projectStore';
+import { useBoardStore } from '../boards/boardStore';
+import { useActivityStore } from '../activities/activityStore';
+import { useNotificationStore } from '../notifications/notificationStore';
 
 export interface Workspace {
   id: string;
   name: string;
   ownerId: string;
+  activityRetentionDays?: number;
 }
 
 export interface WorkspaceMember {
@@ -18,13 +23,21 @@ interface WorkspaceState {
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
   members: WorkspaceMember[];
+  membersLoaded: boolean;
+  lastFetchedWorkspaceId: string | null;
+  lastMembersFetchedAt: number | null;
   isLoading: boolean;
   error: string | null;
+
   fetchWorkspaces: () => Promise<void>;
   selectWorkspace: (workspaceId: string) => Promise<void>;
+  resetWorkspaceScopedState: () => void;
   createWorkspace: (name: string) => Promise<Workspace>;
+  updateWorkspace: (workspaceId: string, data: { name?: string; activityRetentionDays?: number }) => Promise<Workspace>;
+  pruneActivityLogs: (workspaceId: string) => Promise<number>;
   deleteWorkspace: (workspaceId: string) => Promise<void>;
-  fetchMembers: (workspaceId: string) => Promise<void>;
+  leaveWorkspace: (workspaceId: string) => Promise<void>;
+  fetchMembers: (workspaceId: string, force?: boolean) => Promise<void>;
   inviteMember: (workspaceId: string, email: string, role: 'admin' | 'member') => Promise<void>;
   changeMemberRole: (workspaceId: string, userId: string, role: 'admin' | 'member') => Promise<void>;
   removeMember: (workspaceId: string, userId: string) => Promise<void>;
@@ -34,8 +47,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   activeWorkspace: null,
   members: [],
+  membersLoaded: false,
+  lastFetchedWorkspaceId: null,
+  lastMembersFetchedAt: null,
   isLoading: false,
   error: null,
+
+  resetWorkspaceScopedState: () => {
+    // Reset dependent workspace stores
+    useProjectStore.getState().resetWorkspaceProjects();
+    useBoardStore.getState().resetWorkspaceBoards();
+    useActivityStore.getState().resetWorkspaceActivities();
+    useNotificationStore.getState().resetWorkspaceNotifications();
+
+    set({
+      members: [],
+      membersLoaded: false,
+      lastFetchedWorkspaceId: null,
+      lastMembersFetchedAt: null,
+    });
+  },
 
   fetchWorkspaces: async () => {
     set({ isLoading: true, error: null });
@@ -43,9 +74,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const res = await api.get<{ success: true; data: Workspace[] }>('/workspaces');
       const workspaces = res.data.data;
       set({ workspaces, isLoading: false });
-      if (workspaces.length > 0 && !get().activeWorkspace) {
-        // Default to first workspace
+      
+      const savedWorkspaceId = localStorage.getItem('tb_active_workspace');
+      const currentActiveId = get().activeWorkspace?.id;
+      const targetId = currentActiveId || savedWorkspaceId;
+
+      const matchedWs = workspaces.find((w) => w.id === targetId);
+      if (matchedWs) {
+        await get().selectWorkspace(matchedWs.id);
+      } else if (workspaces.length > 0) {
         await get().selectWorkspace(workspaces[0].id);
+      } else {
+        set({ activeWorkspace: null, members: [] });
       }
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to fetch workspaces', isLoading: false });
@@ -53,11 +93,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   selectWorkspace: async (workspaceId) => {
+    const currentActiveId = get().activeWorkspace?.id;
     const ws = get().workspaces.find((w) => w.id === workspaceId) || null;
+
+    if (currentActiveId !== workspaceId) {
+      get().resetWorkspaceScopedState();
+    }
+
     if (ws) {
       set({ activeWorkspace: ws });
-      // Fetch members for active workspace
+      localStorage.setItem('tb_active_workspace', workspaceId);
       await get().fetchMembers(workspaceId);
+    } else {
+      localStorage.removeItem('tb_active_workspace');
+      set({ activeWorkspace: null });
     }
   },
 
@@ -68,12 +117,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const newWs = res.data.data;
       set((state) => ({
         workspaces: [...state.workspaces, newWs],
-        activeWorkspace: state.activeWorkspace ? state.activeWorkspace : newWs,
         isLoading: false,
       }));
-      if (!get().activeWorkspace || get().activeWorkspace?.id === newWs.id) {
-        await get().selectWorkspace(newWs.id);
-      }
+      await get().selectWorkspace(newWs.id);
       return newWs;
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Failed to create workspace';
@@ -82,31 +128,99 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
   },
 
+  updateWorkspace: async (workspaceId, data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await api.put<{ success: true; data: Workspace }>(`/workspaces/${workspaceId}`, data);
+      const updated = res.data.data;
+      set((state) => ({
+        workspaces: state.workspaces.map((w) => (w.id === workspaceId ? updated : w)),
+        activeWorkspace: state.activeWorkspace?.id === workspaceId ? updated : state.activeWorkspace,
+        isLoading: false,
+      }));
+      return updated;
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || 'Failed to update workspace';
+      set({ error: errMsg, isLoading: false });
+      throw new Error(errMsg);
+    }
+  },
+
+  pruneActivityLogs: async (workspaceId) => {
+    try {
+      const res = await api.post<{ success: true; data: { prunedCount: number }; message: string }>(
+        `/workspaces/${workspaceId}/activity/prune`
+      );
+      return res.data.data.prunedCount;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Failed to prune activity logs');
+    }
+  },
+
   deleteWorkspace: async (workspaceId) => {
     set({ isLoading: true, error: null });
     try {
       await api.delete(`/workspaces/${workspaceId}`);
-      set((state) => {
-        const filtered = state.workspaces.filter((w) => w.id !== workspaceId);
-        const nextActive = state.activeWorkspace?.id === workspaceId ? (filtered[0] || null) : state.activeWorkspace;
-        return {
-          workspaces: filtered,
-          activeWorkspace: nextActive,
-          isLoading: false,
-        };
-      });
-      if (get().activeWorkspace) {
-        await get().selectWorkspace(get().activeWorkspace!.id);
+      const remaining = get().workspaces.filter((w) => w.id !== workspaceId);
+      set({ workspaces: remaining, isLoading: false });
+      const nextWs = remaining[0] || null;
+      if (nextWs) {
+        await get().selectWorkspace(nextWs.id);
+      } else {
+        set({ activeWorkspace: null, members: [] });
+        localStorage.removeItem('tb_active_workspace');
       }
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Failed to delete workspace', isLoading: false });
+      const errMsg = err.response?.data?.message || 'Failed to delete workspace';
+      set({ error: errMsg, isLoading: false });
+      throw new Error(errMsg);
     }
   },
 
-  fetchMembers: async (workspaceId) => {
+  leaveWorkspace: async (workspaceId) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.post(`/workspaces/${workspaceId}/leave`);
+      const remaining = get().workspaces.filter((w) => w.id !== workspaceId);
+      set({ workspaces: remaining, isLoading: false });
+      const nextWs = remaining[0] || null;
+      if (nextWs) {
+        await get().selectWorkspace(nextWs.id);
+      } else {
+        set({ activeWorkspace: null, members: [] });
+        localStorage.removeItem('tb_active_workspace');
+      }
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || 'Failed to leave workspace';
+      set({ error: errMsg, isLoading: false });
+      throw new Error(errMsg);
+    }
+  },
+
+  fetchMembers: async (workspaceId, force = false) => {
+    const state = get();
+    const isCached =
+      !force &&
+      state.membersLoaded &&
+      state.lastFetchedWorkspaceId === workspaceId &&
+      state.lastMembersFetchedAt &&
+      Date.now() - state.lastMembersFetchedAt < 60000;
+
+    if (isCached) {
+      return;
+    }
+
     try {
       const res = await api.get<{ success: true; data: WorkspaceMember[] }>(`/workspaces/${workspaceId}/members`);
-      set({ members: res.data.data });
+      // Prevent race conditions: verify active workspace has not changed
+      if (get().activeWorkspace?.id === workspaceId) {
+        set({
+          members: res.data.data,
+          membersLoaded: true,
+          lastFetchedWorkspaceId: workspaceId,
+          lastMembersFetchedAt: Date.now(),
+        });
+      }
     } catch (err: any) {
       console.error('Failed to fetch members:', err);
     }
@@ -115,7 +229,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   inviteMember: async (workspaceId, email, role) => {
     try {
       await api.post(`/workspaces/${workspaceId}/members`, { email, role });
-      await get().fetchMembers(workspaceId);
+      await get().fetchMembers(workspaceId, true);
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Failed to invite member');
     }
@@ -124,7 +238,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   changeMemberRole: async (workspaceId, userId, role) => {
     try {
       await api.patch(`/workspaces/${workspaceId}/members/${userId}`, { role });
-      await get().fetchMembers(workspaceId);
+      await get().fetchMembers(workspaceId, true);
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Failed to update member role');
     }
@@ -133,7 +247,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   removeMember: async (workspaceId, userId) => {
     try {
       await api.delete(`/workspaces/${workspaceId}/members/${userId}`);
-      await get().fetchMembers(workspaceId);
+      await get().fetchMembers(workspaceId, true);
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Failed to remove member');
     }
