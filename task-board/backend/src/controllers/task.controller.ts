@@ -1,0 +1,369 @@
+import type { Request, Response, NextFunction } from 'express';
+import * as taskService from '../services/taskService.js';
+import * as activityService from '../services/activityService.js';
+import * as notificationService from '../services/notificationService.js';
+import { broadcast } from '../sockets/socket.js';
+import { CreateTaskInput, UpdateTaskInput, MoveTaskInput } from '../schemas.js';
+import { prisma } from '../config/db.js';
+
+function requireParam(req: Request, name: string): string {
+  const v = req.params[name];
+  if (typeof v !== 'string' || v.length === 0) {
+    throw new Error(`Missing route param: ${name}`);
+  }
+  return v;
+}
+
+export async function createTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const boardId = requireParam(req, 'boardId');
+    const parsedBody = CreateTaskInput.parse(req.body);
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+
+    if (parsedBody.assigneeId) {
+      const board = await prisma.board.findUnique({ where: { id: boardId } });
+      if (board) {
+        const assigneeMembership = await prisma.projectMember.findUnique({
+          where: { projectId_userId: { projectId: board.projectId, userId: parsedBody.assigneeId } },
+        });
+        const isWsAdmin = await prisma.workspaceMember.findFirst({
+          where: {
+            userId: parsedBody.assigneeId,
+            workspace: { projects: { some: { id: board.projectId } } },
+            role: { in: ['owner', 'admin'] },
+          },
+        });
+        if (!assigneeMembership && !isWsAdmin) {
+          res.status(400).json({
+            success: false,
+            message: 'Assignee must be a member of this project',
+            errorCode: 'INVALID_ASSIGNEE',
+          });
+          return;
+        }
+      }
+    }
+
+    const task = await taskService.createTask(boardId, userId, parsedBody);
+
+    // Resolve workspace ID to log activity
+    const board = await prisma.board.findUnique({ where: { id: boardId } });
+    if (board) {
+      const project = await prisma.project.findUnique({ where: { id: board.projectId } });
+      if (project) {
+        // Log Activity
+        await activityService.createActivity(
+          project.workspaceId,
+          userId,
+          'created',
+          `created task "${task.title}"`,
+          { projectId: project.id, boardId: board.id, taskId: task.id }
+        );
+
+        // Notify Assignee (if task is assigned on creation)
+        if (task.assigneeId) {
+          const user = await prisma.user.findUnique({ where: { id: userId } });
+          await notificationService.createNotification(
+            task.assigneeId,
+            userId,
+            'task_assigned',
+            'Task Assigned',
+            `${user?.name || 'Someone'} assigned you "${task.title}"`,
+            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${board.id}`
+          );
+        }
+      }
+    }
+
+    // Broadcast real-time Socket event to the room
+    broadcast(`board:${boardId}`, 'task:created', task);
+
+    res.status(201).json({
+      success: true,
+      data: task,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTasksForBoard(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const boardId = requireParam(req, 'boardId');
+    const tasks = await taskService.getTasksForBoard(boardId);
+
+    res.status(200).json({
+      success: true,
+      data: tasks,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTaskById(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const task = await taskService.getTaskById(taskId);
+
+    if (!task) {
+      res.status(404).json({
+        success: false,
+        message: 'Task not found',
+        errorCode: 'NOT_FOUND',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const parsedBody = UpdateTaskInput.parse(req.body);
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+
+    const originalTask = await taskService.getTaskById(taskId);
+    if (!originalTask) {
+      res.status(404).json({ success: false, message: 'Task not found', errorCode: 'NOT_FOUND' });
+      return;
+    }
+
+    if (parsedBody.assigneeId !== undefined && parsedBody.assigneeId !== (originalTask.assigneeId || null)) {
+      const wsMember = await prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId: (await prisma.project.findUnique({ where: { id: originalTask.projectId } }))!.workspaceId, userId } },
+      });
+      const isWsAdmin = wsMember && (wsMember.role === 'owner' || wsMember.role === 'admin');
+      const projectMember = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: originalTask.projectId, userId } },
+      });
+      const isHead = projectMember && projectMember.role === 'head';
+      if (!isWsAdmin && !isHead) {
+        res.status(403).json({
+          success: false,
+          message: 'Only workspace admin or project head can assign tasks',
+          errorCode: 'FORBIDDEN',
+        });
+        return;
+      }
+    }
+
+    if (parsedBody.assigneeId !== undefined && parsedBody.assigneeId !== null) {
+      const assigneeMembership = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: originalTask.projectId, userId: parsedBody.assigneeId } },
+      });
+      const isWsAdmin = await prisma.workspaceMember.findFirst({
+        where: {
+          userId: parsedBody.assigneeId,
+          workspace: { projects: { some: { id: originalTask.projectId } } },
+          role: { in: ['owner', 'admin'] },
+        },
+      });
+      if (!assigneeMembership && !isWsAdmin) {
+        res.status(400).json({
+          success: false,
+          message: 'Assignee must be a member of this project',
+          errorCode: 'INVALID_ASSIGNEE',
+        });
+        return;
+      }
+    }
+
+    const task = await taskService.updateTask(taskId, parsedBody);
+
+    // Resolve workspace details
+    const project = await prisma.project.findUnique({ where: { id: task.projectId } });
+    if (project) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const metadata = { projectId: project.id, boardId: task.boardId, taskId: task.id };
+
+      // Log assignee change
+      if (parsedBody.assigneeId !== undefined && originalTask.assigneeId !== task.assigneeId) {
+        if (task.assigneeId) {
+          const assignee = await prisma.user.findUnique({ where: { id: task.assigneeId } });
+          await activityService.createActivity(
+            project.workspaceId,
+            userId,
+            'assigned',
+            `assigned task "${task.title}" to ${assignee?.name || 'someone'}`,
+            metadata
+          );
+
+          // Notify new assignee
+          await notificationService.createNotification(
+            task.assigneeId,
+            userId,
+            'task_assigned',
+            'Task Assigned',
+            `${user?.name || 'Someone'} assigned you "${task.title}"`,
+            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
+          );
+        } else {
+          await activityService.createActivity(
+            project.workspaceId,
+            userId,
+            'unassigned',
+            `removed assignee from task "${task.title}"`,
+            metadata
+          );
+        }
+      }
+
+      // Log priority change
+      if (parsedBody.priority !== undefined && originalTask.priority !== task.priority) {
+        await activityService.createActivity(
+          project.workspaceId,
+          userId,
+          'updated',
+          `changed priority of "${task.title}" from ${originalTask.priority} to ${task.priority}`,
+          metadata
+        );
+      }
+
+      // Log title/desc changes
+      if (parsedBody.title !== undefined && originalTask.title !== task.title) {
+        await activityService.createActivity(
+          project.workspaceId,
+          userId,
+          'updated',
+          `renamed task to "${task.title}"`,
+          metadata
+        );
+      }
+    }
+
+    // Broadcast real-time Socket event to the room
+    broadcast(`board:${task.boardId}`, 'task:updated', task);
+
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function moveTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const parsedBody = MoveTaskInput.parse(req.body);
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+
+    // Fetch original task column
+    const originalTask = await taskService.getTaskById(taskId);
+    if (!originalTask) {
+      res.status(404).json({ success: false, message: 'Task not found', errorCode: 'NOT_FOUND' });
+      return;
+    }
+
+    const task = await taskService.moveTask(taskId, parsedBody);
+
+    // Resolve workspace details
+    const project = await prisma.project.findUnique({ where: { id: task.projectId } });
+    if (project) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const metadata = { projectId: project.id, boardId: task.boardId, taskId: task.id };
+
+      if (originalTask.columnId !== task.columnId) {
+        const fromCol = await prisma.boardColumn.findUnique({ where: { id: originalTask.columnId } });
+        const toCol = await prisma.boardColumn.findUnique({ where: { id: task.columnId } });
+        const colNames = `${fromCol?.name || 'Unknown'} → ${toCol?.name || 'Unknown'}`;
+
+        await activityService.createActivity(
+          project.workspaceId,
+          userId,
+          'moved',
+          `moved task "${task.title}" (${colNames})`,
+          metadata
+        );
+
+        // Notify assignee if moved by someone else
+        if (task.assigneeId) {
+          await notificationService.createNotification(
+            task.assigneeId,
+            userId,
+            'task_moved',
+            'Task Moved',
+            `${user?.name || 'Someone'} moved task "${task.title}" to ${toCol?.name || 'column'}`,
+            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
+          );
+        }
+      } else {
+        await activityService.createActivity(
+          project.workspaceId,
+          userId,
+          'reordered',
+          `reordered task "${task.title}"`,
+          metadata
+        );
+      }
+    }
+
+    // Broadcast real-time Socket event to the room
+    broadcast(`board:${task.boardId}`, 'task:moved', task);
+
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+
+    const task = await taskService.getTaskById(taskId);
+    if (!task) {
+      res.status(404).json({ success: false, message: 'Task not found', errorCode: 'NOT_FOUND' });
+      return;
+    }
+
+    await taskService.deleteTask(taskId);
+
+    const project = await prisma.project.findUnique({ where: { id: task.projectId } });
+    if (project) {
+      await activityService.createActivity(
+        project.workspaceId,
+        userId,
+        'deleted',
+        `deleted task "${task.title}"`,
+        { projectId: project.id, boardId: task.boardId }
+      );
+    }
+
+    // Broadcast real-time Socket event to the room
+    broadcast(`board:${task.boardId}`, 'task:deleted', { id: taskId });
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}

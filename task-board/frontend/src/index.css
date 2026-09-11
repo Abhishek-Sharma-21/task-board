@@ -1,0 +1,338 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   THEME SYSTEM - CSS Variables
+   ============================================ */
+
+/* Dark Theme (Default) */
+:root,
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-page: #09090B;
+  --bg-surface: #111113;
+  --bg-surface-elevated: #161618;
+  --bg-surface-hover: #1B1B1E;
+  --bg-surface-active: #222225;
+  --bg-input: #151517;
+  --bg-input-hover: #1A1A1D;
+
+  /* Sidebar */
+  --bg-sidebar: #09090B;
+  --bg-sidebar-hover: #141416;
+  --bg-sidebar-active: #1E1E21;
+
+  /* Header */
+  --bg-header: #09090B;
+
+  /* Cards */
+  --bg-card: #121214;
+  --bg-card-hover: #161618;
+
+  /* Kanban */
+  --bg-kanban: #0B0B0D;
+  --bg-kanban-column: #101012;
+  --bg-kanban-card: #161618;
+  --bg-kanban-card-hover: #1B1B1E;
+
+  /* Borders */
+  --border-default: #29292C;
+  --border-subtle: #1D1D20;
+  --border-strong: #3A3A3E;
+  --border-focus: #E53935;
+  --border-input: #3A3A3E;
+
+  /* Text */
+  --text-primary: #F5F5F0;
+  --text-secondary: #C7C7C2;
+  --text-tertiary: #8A8A86;
+  --text-muted: #62625F;
+  --text-faint: #3F3F42;
+
+  /* Brand / Primary */
+  --color-primary: #E53935;
+  --color-primary-hover: #F04440;
+  --color-primary-light: rgba(229, 57, 53, 0.10);
+  --color-primary-dark: #C92F2C;
+
+  /* Status Colors */
+  --color-success: #4CAF50;
+  --color-success-light: rgba(76, 175, 80, 0.12);
+  --color-warning: #FF9800;
+  --color-warning-light: rgba(255, 152, 0, 0.12);
+  --color-danger: #E53935;
+  --color-danger-light: rgba(229, 57, 53, 0.12);
+  --color-info: #2196F3;
+  --color-info-light: rgba(33, 150, 243, 0.12);
+
+  /* Priority Colors */
+  --priority-urgent-bg: rgba(229, 57, 53, 0.15);
+  --priority-urgent-text: #E53935;
+  --priority-urgent-border: rgba(229, 57, 53, 0.40);
+  --priority-high-bg: rgba(255, 152, 0, 0.12);
+  --priority-high-text: #FF9800;
+  --priority-high-border: rgba(255, 152, 0, 0.35);
+  --priority-medium-bg: rgba(33, 150, 243, 0.12);
+  --priority-medium-text: #2196F3;
+  --priority-medium-border: rgba(33, 150, 243, 0.35);
+  --priority-low-bg: #1A1A1D;
+  --priority-low-text: #8A8A86;
+  --priority-low-border: #29292C;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -2px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+
+  /* Overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.70);
+
+  /* Scrollbar */
+  --scrollbar-track: #09090B;
+  --scrollbar-thumb: #29292C;
+  --scrollbar-thumb-hover: #3A3A3E;
+
+  /* Badges */
+  --badge-owner-bg: rgba(229, 57, 53, 0.18);
+  --badge-owner-text: #E53935;
+  --badge-owner-border: rgba(229, 57, 53, 0.40);
+  --badge-admin-bg: #1A1A1D;
+  --badge-admin-text: #C7C7C2;
+  --badge-admin-border: #29292C;
+  --badge-member-bg: transparent;
+  --badge-member-text: #8A8A86;
+  --badge-member-border: transparent;
+
+  /* Notification */
+  --notification-unread-bg: rgba(229, 57, 53, 0.08);
+  --notification-unread-hover: rgba(229, 57, 53, 0.14);
+
+  /* Tag/Label */
+  --tag-bg: #1A1A1D;
+  --tag-border: #29292C;
+  --tag-text: #C7C7C2;
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  /* Backgrounds */
+  --bg-page: #F5F5F2;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-surface-hover: #F0F0EC;
+  --bg-surface-active: #E8E8E4;
+  --bg-input: #FFFFFF;
+  --bg-input-hover: #FAFAF7;
+
+  /* Sidebar */
+  --bg-sidebar: #F2F2EE;
+  --bg-sidebar-hover: #E8E8E4;
+  --bg-sidebar-active: #DCDCD8;
+
+  /* Header */
+  --bg-header: #F5F5F2;
+
+  /* Cards */
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FAFAF7;
+
+  /* Kanban */
+  --bg-kanban: #F0F0EC;
+  --bg-kanban-column: #E8E8E4;
+  --bg-kanban-card: #FFFFFF;
+  --bg-kanban-card-hover: #FAFAF7;
+
+  /* Borders */
+  --border-default: #D9D9D4;
+  --border-subtle: #E5E5E0;
+  --border-strong: #C7C7C2;
+  --border-focus: #D93632;
+  --border-input: #CFCFC9;
+
+  /* Text */
+  --text-primary: #171717;
+  --text-secondary: #4A4A47;
+  --text-tertiary: #777773;
+  --text-muted: #999994;
+  --text-faint: #C7C7C2;
+
+  /* Brand / Primary */
+  --color-primary: #D93632;
+  --color-primary-hover: #C92F2C;
+  --color-primary-light: rgba(217, 54, 50, 0.08);
+  --color-primary-dark: #B82825;
+
+  /* Status Colors */
+  --color-success: #2E7D32;
+  --color-success-light: rgba(46, 125, 50, 0.08);
+  --color-warning: #E65100;
+  --color-warning-light: rgba(230, 81, 0, 0.08);
+  --color-danger: #D93632;
+  --color-danger-light: rgba(217, 54, 50, 0.08);
+  --color-info: #1565C0;
+  --color-info-light: rgba(21, 101, 192, 0.08);
+
+  /* Priority Colors */
+  --priority-urgent-bg: rgba(217, 54, 50, 0.10);
+  --priority-urgent-text: #D93632;
+  --priority-urgent-border: rgba(217, 54, 50, 0.30);
+  --priority-high-bg: rgba(230, 81, 0, 0.08);
+  --priority-high-text: #E65100;
+  --priority-high-border: rgba(230, 81, 0, 0.25);
+  --priority-medium-bg: rgba(21, 101, 192, 0.08);
+  --priority-medium-text: #1565C0;
+  --priority-medium-border: rgba(21, 101, 192, 0.25);
+  --priority-low-bg: #F0F0EC;
+  --priority-low-text: #777773;
+  --priority-low-border: #D9D9D4;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+
+  /* Overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.35);
+
+  /* Scrollbar */
+  --scrollbar-track: #F0F0EC;
+  --scrollbar-thumb: #C7C7C2;
+  --scrollbar-thumb-hover: #999994;
+
+  /* Badges */
+  --badge-owner-bg: rgba(217, 54, 50, 0.08);
+  --badge-owner-text: #D93632;
+  --badge-owner-border: rgba(217, 54, 50, 0.25);
+  --badge-admin-bg: #F0F0EC;
+  --badge-admin-text: #4A4A47;
+  --badge-admin-border: #D9D9D4;
+  --badge-member-bg: transparent;
+  --badge-member-text: #999994;
+  --badge-member-border: transparent;
+
+  /* Notification */
+  --notification-unread-bg: rgba(217, 54, 50, 0.05);
+  --notification-unread-hover: rgba(217, 54, 50, 0.10);
+
+  /* Tag/Label */
+  --tag-bg: #F0F0EC;
+  --tag-border: #D9D9D4;
+  --tag-text: #4A4A47;
+}
+
+/* ============================================
+   THEME TRANSITIONS
+   ============================================ */
+
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-timing-function: ease-in-out;
+  transition-duration: 150ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms;
+  }
+}
+
+/* ============================================
+   SCROLLBAR STYLES
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+html {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   FOCUS STYLES
+   ============================================ */
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   SELECTION STYLES
+   ============================================ */
+
+::selection {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+@layer utilities {
+  .theme-bg-page { background-color: var(--bg-page); }
+  .theme-bg-surface { background-color: var(--bg-surface); }
+  .theme-bg-surface-elevated { background-color: var(--bg-surface-elevated); }
+  .theme-bg-surface-hover { background-color: var(--bg-surface-hover); }
+  .theme-bg-surface-active { background-color: var(--bg-surface-active); }
+  .theme-bg-input { background-color: var(--bg-input); }
+  .theme-bg-sidebar { background-color: var(--bg-sidebar); }
+  .theme-bg-sidebar-hover { background-color: var(--bg-sidebar-hover); }
+  .theme-bg-sidebar-active { background-color: var(--bg-sidebar-active); }
+  .theme-bg-header { background-color: var(--bg-header); }
+  .theme-bg-card { background-color: var(--bg-card); }
+  .theme-bg-card-hover { background-color: var(--bg-card-hover); }
+  .theme-bg-kanban { background-color: var(--bg-kanban); }
+  .theme-bg-kanban-column { background-color: var(--bg-kanban-column); }
+  .theme-bg-kanban-card { background-color: var(--bg-kanban-card); }
+
+  .theme-border { border-color: var(--border-default); }
+  .theme-border-subtle { border-color: var(--border-subtle); }
+  .theme-border-strong { border-color: var(--border-strong); }
+  .theme-border-input { border-color: var(--border-input); }
+
+  .theme-text-primary { color: var(--text-primary); }
+  .theme-text-secondary { color: var(--text-secondary); }
+  .theme-text-tertiary { color: var(--text-tertiary); }
+  .theme-text-muted { color: var(--text-muted); }
+
+  .theme-shadow-sm { box-shadow: var(--shadow-sm); }
+  .theme-shadow-md { box-shadow: var(--shadow-md); }
+  .theme-shadow-lg { box-shadow: var(--shadow-lg); }
+  .theme-shadow-xl { box-shadow: var(--shadow-xl); }
+}

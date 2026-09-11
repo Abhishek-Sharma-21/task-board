@@ -1,0 +1,867 @@
+import React, { useEffect, useState } from 'react';
+import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { useAuthStore } from '../features/auth/authStore';
+import { useWorkspaceStore } from '../features/workspaces/workspaceStore';
+import { useProjectStore } from '../features/projects/projectStore';
+import { useBoardStore } from '../features/boards/boardStore';
+import { useNotificationStore } from '../features/notifications/notificationStore';
+import { useThemeStore } from '../stores/themeStore';
+import { disconnectSocket } from '../sockets/socket';
+import { Spinner } from '../components/Spinner';
+
+export const AppLayout: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const navigate = useNavigate();
+  const { workspaceId, projectId, boardId } = useParams<{ workspaceId: string; projectId: string; boardId: string }>();
+
+  // Modals state
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  const [workspaceNameInput, setWorkspaceNameInput] = useState('');
+  const [projectNameInput, setProjectNameInput] = useState('');
+  const [boardNameInput, setBoardNameInput] = useState('');
+  const [boardDescInput, setBoardDescInput] = useState('');
+
+  // Team Invite Form State
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
+
+  // Loading states for async buttons
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isCreatingBoard, setIsCreatingBoard] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Notifications Store
+  const {
+    notifications,
+    isLoading: isNotifLoading,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+  } = useNotificationStore();
+
+  // Workspaces Store
+  const {
+    workspaces,
+    activeWorkspace,
+    members,
+    fetchWorkspaces,
+    selectWorkspace,
+    createWorkspace,
+    inviteMember,
+    changeMemberRole,
+    removeMember,
+  } = useWorkspaceStore();
+
+  // Projects Store
+  const {
+    projects,
+    activeProject,
+    fetchProjects,
+    selectProject,
+    createProject,
+  } = useProjectStore();
+
+  // Boards Store
+  const {
+    boards,
+    activeBoard,
+    fetchBoards,
+    selectBoard,
+    createBoard,
+  } = useBoardStore();
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+    }
+  }, [user, fetchNotifications]);
+
+  useEffect(() => {
+    if (activeWorkspace) {
+      fetchProjects(activeWorkspace.id);
+    }
+  }, [activeWorkspace, fetchProjects]);
+
+  useEffect(() => {
+    if (activeProject) {
+      fetchBoards(activeProject.id);
+    }
+  }, [activeProject, fetchBoards]);
+
+  // Sync route params with store state on direct load
+  useEffect(() => {
+    if (workspaceId && workspaces.length > 0 && activeWorkspace?.id !== workspaceId) {
+      selectWorkspace(workspaceId);
+    }
+  }, [workspaceId, workspaces, activeWorkspace, selectWorkspace]);
+
+  useEffect(() => {
+    if (projectId && projects.length > 0 && activeProject?.id !== projectId) {
+      selectProject(projectId);
+    }
+  }, [projectId, projects, activeProject, selectProject]);
+
+  useEffect(() => {
+    if (boardId && boards.length > 0 && activeBoard?.id !== boardId) {
+      selectBoard(boardId);
+    }
+  }, [boardId, boards, activeBoard, selectBoard]);
+
+
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      disconnectSocket();
+      await logout();
+      navigate('/login');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const submitCreateWorkspace = async () => {
+    if (!workspaceNameInput?.trim() || isCreatingWorkspace) return;
+    setIsCreatingWorkspace(true);
+    try {
+      const ws = await createWorkspace(workspaceNameInput.trim());
+      setWorkspaceNameInput('');
+      setIsWorkspaceModalOpen(false);
+      navigate(`/workspaces/${ws.id}`);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
+  };
+
+  const submitCreateProject = async () => {
+    if (!activeWorkspace || !projectNameInput?.trim() || isCreatingProject) return;
+    setIsCreatingProject(true);
+    try {
+      const proj = await createProject(activeWorkspace.id, projectNameInput.trim());
+      setProjectNameInput('');
+      setIsProjectModalOpen(false);
+      navigate(`/workspaces/${activeWorkspace.id}/projects/${proj.id}`);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
+
+  const submitCreateBoard = async () => {
+    if (!activeWorkspace || !activeProject || !boardNameInput?.trim() || isCreatingBoard) return;
+    setIsCreatingBoard(true);
+    try {
+      const brd = await createBoard(activeProject.id, boardNameInput.trim(), boardDescInput.trim());
+      setBoardNameInput('');
+      setBoardDescInput('');
+      setIsBoardModalOpen(false);
+      navigate(`/workspaces/${activeWorkspace.id}/projects/${activeProject.id}/boards/${brd.id}`);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsCreatingBoard(false);
+    }
+  };
+
+  const handleInviteMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeWorkspace || !inviteEmail.trim() || isInviting) return;
+    setIsInviting(true);
+    setInviteError(null);
+    setInviteSuccess(false);
+    try {
+      await inviteMember(activeWorkspace.id, inviteEmail.trim(), inviteRole);
+      setInviteEmail('');
+      setInviteSuccess(true);
+    } catch (err: any) {
+      setInviteError(err.message || 'Failed to invite member');
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, role: 'admin' | 'member') => {
+    if (!activeWorkspace) return;
+    try {
+      await changeMemberRole(activeWorkspace.id, userId, role);
+    } catch (err: any) {
+      alert(err.message || 'Failed to change role');
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!activeWorkspace || removingMemberId) return;
+    if (!window.confirm('Are you sure you want to remove this member from the workspace?')) return;
+    setRemovingMemberId(userId);
+    try {
+      await removeMember(activeWorkspace.id, userId);
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove member');
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name || !name.trim()) return '??';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Find user member role
+  const userMember = members.find((m) => m.id === user?.id);
+  const userRole = userMember ? userMember.role : 'member';
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const { theme, toggleTheme } = useThemeStore();
+
+  return (
+    <div className="min-h-screen flex bg-page text-text-primary font-sans relative">
+      {/* Sidebar */}
+      <aside className="w-64 bg-sidebar border-r border-border flex flex-col justify-between p-6 overflow-y-auto">
+        <div className="space-y-8">
+          {/* Logo */}
+          <div className="flex items-center space-x-2" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-sm text-white">
+              F
+            </div>
+            <span className="text-sm font-black tracking-widest text-text-primary uppercase">
+              ForgeBoard
+            </span>
+          </div>
+
+          {/* Workspace Switcher */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted">
+                WORKSPACE
+              </span>
+              <button
+                onClick={() => setIsWorkspaceModalOpen(true)}
+                className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold"
+                aria-label="New Workspace"
+              >
+                + NEW
+              </button>
+            </div>
+            {workspaces.length > 0 ? (
+              <select
+                value={activeWorkspace?.id || ''}
+                onChange={(e) => {
+                  selectWorkspace(e.target.value);
+                  navigate(`/workspaces/${e.target.value}`);
+                }}
+                className="bg-input border border-border text-sm font-bold text-text-secondary py-2 px-3 rounded-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+              >
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-xs text-text-faint italic">No workspaces found</div>
+            )}
+          </div>
+
+          {/* Projects Switcher */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted">
+                PROJECTS
+              </span>
+              {userRole !== 'member' && (
+                <button
+                  onClick={() => setIsProjectModalOpen(true)}
+                  className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold"
+                  disabled={!activeWorkspace}
+                  aria-label="New Project"
+                >
+                  + NEW
+                </button>
+              )}
+            </div>
+            {projects.length > 0 ? (
+              <div className="space-y-1">
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      selectProject(p.id);
+                      navigate(`/workspaces/${activeWorkspace?.id}/projects/${p.id}`);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
+                      activeProject?.id === p.id
+                        ? 'bg-surface-active border-border text-text-primary'
+                        : 'border-transparent text-text-muted hover:text-text-secondary'
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-text-faint italic">No projects found</div>
+            )}
+          </div>
+
+          {/* Boards List */}
+          {activeProject && (
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted">
+                  BOARDS
+                </span>
+                {userRole !== 'member' && (
+                  <button
+                    onClick={() => setIsBoardModalOpen(true)}
+                    className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold"
+                    aria-label="New Board"
+                  >
+                    + NEW
+                  </button>
+                )}
+              </div>
+              {boards.length > 0 ? (
+                <div className="space-y-1">
+                  {boards.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/projects/${activeProject.id}/boards/${b.id}`)}
+                      className={`w-full text-left px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
+                        activeBoard?.id === b.id
+                          ? 'bg-surface-active border-border text-text-primary'
+                          : 'border-transparent text-text-muted hover:text-text-secondary'
+                      }`}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-text-faint italic">No boards found</div>
+              )}
+            </div>
+          )}
+
+          {/* Nav Items */}
+          <nav className="space-y-1.5 pt-4 border-t border-border-subtle">
+            <button
+              onClick={() => navigate('/')}
+              className="w-full flex items-center space-x-3 px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-primary transition-colors"
+            >
+              <span>Home Overview</span>
+            </button>
+            <button
+              onClick={() => setIsTeamModalOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+            >
+              <span>Team Settings</span>
+              <span className="text-[9px] font-mono bg-primary-light text-primary px-1 py-0.5 rounded-sm">MEMBERS</span>
+            </button>
+            <button
+              onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/activity`)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+            >
+              <span>Activity History</span>
+              <span className="text-[9px] font-mono bg-surface text-text-muted px-1 py-0.5 rounded-sm">LOG</span>
+            </button>
+          </nav>
+          {/* Workflow info link */}
+          <div className="pt-3 mt-1 border-t border-border-subtle">
+            <button
+              onClick={() => navigate('/workflow')}
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded-sm text-[11px] font-mono text-primary/60 hover:text-primary transition-colors"
+            >
+              <span>How it works</span>
+              <span className="text-[9px] tracking-wider">&rarr;</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Section */}
+        <div className="space-y-4 pt-6 border-t border-border mt-8">
+          <div className="text-[10px] font-mono text-text-faint flex items-center space-x-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
+            <span className="capitalize">{activeWorkspace?.name || 'Workspace'}</span>
+          </div>
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center space-x-2 text-xs font-mono text-text-muted hover:text-primary transition-colors w-full text-left"
+          >
+            <span>{theme === 'dark' ? '☀' : '☽'}</span>
+            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex items-center space-x-2 text-xs font-mono text-text-muted hover:text-primary transition-colors w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoggingOut ? <Spinner /> : <span>[&rarr;]</span>}
+            <span>{isLoggingOut ? 'Logging out...' : 'Log out'}</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Body Panel */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Header Bar */}
+        <header className="h-16 bg-header border-b border-border flex items-center justify-between px-8">
+          <div>
+            <span className="text-[10px] uppercase font-mono tracking-widest text-text-faint block">
+              PROJECT / PRODUCT
+            </span>
+            <span className="text-sm font-black uppercase tracking-tight text-text-primary">
+              {activeProject?.name || 'Select Project'}
+            </span>
+          </div>
+
+          {/* Header Actions Panel */}
+          {user && (
+            <div className="flex items-center space-x-6">
+              {/* Notification Bell Icon */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  className="relative text-text-muted hover:text-text-primary transition-colors focus:outline-none flex items-center justify-center p-1"
+                  aria-label="Notifications"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-primary text-white rounded-full flex items-center justify-center text-[8px] font-bold font-mono px-1 border border-header">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification Dropdown List */}
+                {isNotificationOpen && (
+                  <div className="absolute right-0 mt-3 w-80 bg-surface-elevated border border-border rounded-sm shadow-theme-xl z-50 overflow-hidden font-sans">
+                    <div className="p-3 border-b border-border flex justify-between items-center bg-surface-hover">
+                      <span className="text-[10px] uppercase font-mono tracking-wider font-bold text-text-muted">
+                        Notifications
+                      </span>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={() => markAllAsRead()}
+                          className="text-[9px] uppercase font-mono text-primary hover:text-primary-hover font-bold"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-72 overflow-y-auto divide-y divide-border-subtle">
+                      {isNotifLoading && notifications.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-text-muted font-mono">
+                          Loading notifications...
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-text-muted font-mono italic">
+                          No notifications found
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              if (!n.read) markAsRead(n.id);
+                              if (n.link) navigate(n.link);
+                              setIsNotificationOpen(false);
+                            }}
+                            className={`p-3 text-left transition-colors cursor-pointer ${
+                              n.read ? 'bg-transparent hover:bg-surface-hover' : 'bg-notification-unread hover:bg-notification-unread-hover'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-2 mb-1">
+                              <span className="text-xs font-bold text-text-primary leading-tight">
+                                {n.title}
+                              </span>
+                              {!n.read && (
+                                <span className="w-1.5 h-1.5 bg-primary rounded-full shrink-0 mt-1"></span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-text-muted leading-normal mb-1">
+                              {n.message}
+                            </p>
+                            <span className="text-[8px] font-mono text-text-faint block">
+                              {new Date(n.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* User Profile Badge */}
+              <div className="flex items-center space-x-3 bg-surface-hover border border-border py-1.5 pl-2.5 pr-3 rounded-sm">
+                <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-xs text-white font-mono">
+                  {getInitials(user.name)}
+                </div>
+                <span className="text-xs font-bold text-text-secondary">
+                  {user.name}
+                </span>
+                <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase">
+                  {userRole}
+                </span>
+              </div>
+            </div>
+          )}
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-12">
+          <Outlet context={{ setIsBoardModalOpen }} />
+        </main>
+      </div>
+
+      {/* Workspace Custom Modal */}
+      {isWorkspaceModalOpen && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
+                CREATE NEW
+              </span>
+              <h3 className="text-xl font-black uppercase tracking-tight text-text-primary">
+                NEW WORKSPACE.
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
+                  Workspace Name *
+                </label>
+                <input
+                  type="text"
+                  value={workspaceNameInput}
+                  onChange={(e) => setWorkspaceNameInput(e.target.value)}
+                  className="block w-full bg-input border border-border rounded-sm py-2.5 px-3 text-text-primary placeholder-text-faint focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm"
+                  placeholder="e.g. Acme Corp"
+                  autoFocus
+                />
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <button
+                  onClick={() => setIsWorkspaceModalOpen(false)}
+                  disabled={isCreatingWorkspace}
+                  className="flex-1 py-2 px-4 border border-border text-xs font-bold uppercase tracking-wider rounded-sm text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitCreateWorkspace}
+                  disabled={isCreatingWorkspace || !workspaceNameInput.trim()}
+                  className="flex-1 py-2 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-sm text-white transition-colors flex items-center justify-center gap-2"
+                >
+                  {isCreatingWorkspace && <Spinner />}
+                  {isCreatingWorkspace ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project Custom Modal */}
+      {isProjectModalOpen && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
+                CREATE NEW
+              </span>
+              <h3 className="text-xl font-black uppercase tracking-tight text-text-primary">
+                NEW PROJECT.
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
+                  Project Name *
+                </label>
+                <input
+                  type="text"
+                  value={projectNameInput}
+                  onChange={(e) => setProjectNameInput(e.target.value)}
+                  className="block w-full bg-input border border-border rounded-sm py-2.5 px-3 text-text-primary placeholder-text-faint focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm"
+                  placeholder="e.g. Website Launch"
+                  autoFocus
+                />
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <button
+                  onClick={() => setIsProjectModalOpen(false)}
+                  disabled={isCreatingProject}
+                  className="flex-1 py-2 px-4 border border-border text-xs font-bold uppercase tracking-wider rounded-sm text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitCreateProject}
+                  disabled={isCreatingProject || !projectNameInput.trim()}
+                  className="flex-1 py-2 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-sm text-white transition-colors flex items-center justify-center gap-2"
+                >
+                  {isCreatingProject && <Spinner />}
+                  {isCreatingProject ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Board Custom Modal */}
+      {isBoardModalOpen && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-sm space-y-6">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
+                CREATE NEW
+              </span>
+              <h3 className="text-xl font-black uppercase tracking-tight text-text-primary">
+                NEW BOARD.
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
+                  Board Name *
+                </label>
+                <input
+                  type="text"
+                  value={boardNameInput}
+                  onChange={(e) => setBoardNameInput(e.target.value)}
+                  className="block w-full bg-input border border-border rounded-sm py-2.5 px-3 text-text-primary placeholder-text-faint focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm mb-4"
+                  placeholder="e.g. Sprint 05"
+                  autoFocus
+                />
+
+                <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-2">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={boardDescInput}
+                  onChange={(e) => setBoardDescInput(e.target.value)}
+                  className="block w-full bg-input border border-border rounded-sm py-2.5 px-3 text-text-primary placeholder-text-faint focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm"
+                  placeholder="Board description..."
+                />
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <button
+                  onClick={() => setIsBoardModalOpen(false)}
+                  disabled={isCreatingBoard}
+                  className="flex-1 py-2 px-4 border border-border text-xs font-bold uppercase tracking-wider rounded-sm text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitCreateBoard}
+                  disabled={isCreatingBoard || !boardNameInput.trim()}
+                  className="flex-1 py-2 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-sm text-white transition-colors flex items-center justify-center gap-2"
+                >
+                  {isCreatingBoard && <Spinner />}
+                  {isCreatingBoard ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Team Settings Custom Modal */}
+      {isTeamModalOpen && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-elevated border border-border p-6 rounded-sm w-full max-w-2xl space-y-6 max-h-[85vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
+                  MANAGE TEAM
+                </span>
+                <h3 className="text-xl font-black uppercase tracking-tight text-text-primary">
+                  WORKSPACE MEMBERS.
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsTeamModalOpen(false);
+                  setInviteEmail('');
+                  setInviteError(null);
+                  setInviteSuccess(false);
+                }}
+                className="text-text-muted hover:text-text-primary font-mono text-sm"
+              >
+                [CLOSE]
+              </button>
+            </div>
+
+            {/* Invite Form (only for Owner and Admin) */}
+            {(userRole === 'owner' || userRole === 'admin') && (
+              <form onSubmit={handleInviteMember} className="border border-border bg-surface-hover p-4 rounded-sm space-y-4">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-primary font-bold block">
+                  Add Workspace Member
+                </span>
+                <div className="flex flex-col md:flex-row gap-3">
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Enter user email..."
+                    className="flex-1 bg-input border border-border-input rounded-sm py-2 px-3 text-text-primary placeholder-text-faint focus:outline-none focus:border-primary text-xs font-mono"
+                    required
+                  />
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as 'admin' | 'member')}
+                    className="bg-input border border-border-input rounded-sm py-2 px-3 text-text-primary focus:outline-none focus:border-primary text-xs font-mono"
+                  >
+                    <option value="member">MEMBER</option>
+                    <option value="admin">ADMIN</option>
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={isInviting || !inviteEmail.trim()}
+                    className="bg-primary hover:bg-primary-hover disabled:opacity-60 text-white font-mono text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-sm transition-colors shrink-0 flex items-center gap-2"
+                  >
+                    {isInviting && <Spinner />}
+                    {isInviting ? 'Adding...' : 'Add Member'}
+                  </button>
+                </div>
+
+                {inviteError && (
+                  <p className="text-xs text-danger font-mono mt-2">{inviteError}</p>
+                )}
+                {inviteSuccess && (
+                  <p className="text-xs text-success font-mono mt-2">Member successfully added to workspace!</p>
+                )}
+              </form>
+            )}
+
+            {/* Members List */}
+            <div className="space-y-3">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-text-muted block">
+                Members List ({members.length})
+              </span>
+              <div className="border border-border rounded-sm overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs font-mono">
+                  <thead>
+                    <tr className="bg-surface-hover border-b border-border text-text-muted uppercase tracking-widest text-[9px]">
+                      <th className="py-2.5 px-3">User</th>
+                      <th className="py-2.5 px-3">Role</th>
+                      {(userRole === 'owner' || userRole === 'admin') && (
+                        <th className="py-2.5 px-3 text-right">Actions</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map((m) => {
+                      const isMe = m.id === user?.id;
+                      let canRemove = false;
+                      if (!isMe && m.role !== 'owner') {
+                        if (userRole === 'owner') {
+                          canRemove = true;
+                        } else if (userRole === 'admin' && m.role === 'member') {
+                          canRemove = true;
+                        }
+                      }
+
+                      return (
+                        <tr key={m.id} className="border-b border-border-subtle hover:bg-surface-hover">
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-[10px] text-text-secondary">
+                                {getInitials(m.name)}
+                              </div>
+                              <div>
+                                <span className="text-text-primary font-bold block font-sans">
+                                  {m.name} {isMe && <span className="text-[9px] text-primary font-mono font-normal">(YOU)</span>}
+                                </span>
+                                <span className="text-text-muted text-[10px] block">{m.email}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {userRole === 'owner' && m.role !== 'owner' && !isMe ? (
+                              <select
+                                value={m.role}
+                                onChange={(e) => handleRoleChange(m.id, e.target.value as 'admin' | 'member')}
+                                className="bg-input border border-border-input rounded-sm py-1 px-2 text-text-primary focus:outline-none focus:border-primary text-[10px]"
+                              >
+                                <option value="member">MEMBER</option>
+                                <option value="admin">ADMIN</option>
+                              </select>
+                            ) : (
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm border ${
+                                m.role === 'owner'
+                                  ? 'border-badge-owner-border bg-badge-owner-bg text-badge-owner-text'
+                                  : m.role === 'admin'
+                                  ? 'border-badge-admin-border bg-badge-admin-bg text-badge-admin-text'
+                                  : 'border-transparent text-text-muted'
+                              }`}>
+                                {m.role}
+                              </span>
+                            )}
+                          </td>
+
+                          {(userRole === 'owner' || userRole === 'admin') && (
+                            <td className="py-3 px-3 text-right">
+                              {canRemove ? (
+                                <button
+                                  onClick={() => handleRemoveMember(m.id)}
+                                  disabled={removingMemberId === m.id}
+                                  className="text-danger hover:text-danger-hover font-bold hover:underline transition-colors uppercase tracking-wider text-[10px] flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  {removingMemberId === m.id && <Spinner className="text-danger" />}
+                                  {removingMemberId === m.id ? 'Removing...' : 'Remove'}
+                                </button>
+                              ) : (
+                                <span className="text-text-faint italic text-[10px]">--</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
