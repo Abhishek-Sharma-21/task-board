@@ -6,18 +6,21 @@ import { useProjectMemberStore } from '../projects/projectMemberStore';
 import { CommentSection } from '../comments/CommentSection';
 import { useActivityStore, Activity } from '../activities/activityStore';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { TaskChatView } from '../chat/TaskChatView';
 import type { Task } from '../../schemas';
 
 interface TaskDrawerProps {
   task: Task | null;
   onClose: () => void;
+  onExpandWorkspace?: () => void;
 }
 
-export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
+export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandWorkspace }) => {
   const currentUser = useAuthStore((state) => state.user);
   const updateTask = useBoardStore((state) => state.updateTask);
   const deleteTask = useBoardStore((state) => state.deleteTask);
   const archiveTask = useBoardStore((state) => state.archiveTask);
+  const duplicateTask = useBoardStore((state) => state.duplicateTask);
   const addChecklistItem = useBoardStore((state) => state.addChecklistItem);
   const toggleChecklistItem = useBoardStore((state) => state.toggleChecklistItem);
   const deleteChecklistItem = useBoardStore((state) => state.deleteChecklistItem);
@@ -33,7 +36,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
   const projectMember = projectMembers.find((m) => m.id === currentUser?.id);
   const canAssign = userRole === 'owner' || userRole === 'admin' || (projectMember?.role === 'head');
 
-  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'chat' | 'history'>('details');
   const [taskHistory, setTaskHistory] = useState<Activity[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -154,6 +157,15 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
     await archiveTask(task.id, !task.isArchived);
   };
 
+  const handleDuplicateTask = async () => {
+    try {
+      await duplicateTask(task.id);
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Failed to duplicate task');
+    }
+  };
+
   const handleAddChecklist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newChecklistText.trim()) {
@@ -199,6 +211,12 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
               Details
             </button>
             <button
+              onClick={() => setActiveTab('chat')}
+              className={`py-1 px-2 rounded-sm ${activeTab === 'chat' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+            >
+              Task Chat 💬
+            </button>
+            <button
               onClick={() => setActiveTab('history')}
               className={`py-1 px-2 rounded-sm ${activeTab === 'history' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
             >
@@ -206,6 +224,21 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
             </button>
           </div>
           <div className="flex items-center space-x-2">
+            {onExpandWorkspace && (
+              <button
+                onClick={onExpandWorkspace}
+                className="text-[10px] font-mono text-primary font-bold uppercase tracking-wider px-2 py-1 bg-primary-light border border-primary/30 rounded-sm hover:bg-primary hover:text-white transition-colors"
+                title="Expand into Centered Split Workspace"
+              >
+                Expand ↗
+              </button>
+            )}
+            <button
+              onClick={handleDuplicateTask}
+              className="text-[10px] font-mono text-text-muted hover:text-text-primary font-bold uppercase tracking-wider px-2 py-1 bg-surface border border-border rounded-sm"
+            >
+              Duplicate
+            </button>
             <button
               onClick={handleToggleArchive}
               className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold uppercase tracking-wider px-2 py-1 bg-surface border border-border rounded-sm"
@@ -233,7 +266,11 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose }) => {
         </div>
 
         {/* Drawer Body content */}
-        {activeTab === 'history' ? (
+        {activeTab === 'chat' ? (
+          <div className="flex-1 h-[520px]">
+            <TaskChatView task={task} onExpand={onExpandWorkspace} />
+          </div>
+        ) : activeTab === 'history' ? (
           <div className="flex-1 space-y-4 font-mono text-xs">
             <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block">
               TASK AUDIT LOG & HISTORY

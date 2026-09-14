@@ -32,7 +32,7 @@ router.post('/:id/members', authenticate, requireWorkspaceRole('admin', 'id'), c
 router.get('/:id/members', authenticate, requireWorkspaceRole('member', 'id'), controller.getWorkspaceMembers);
 
 // PATCH /api/workspaces/:id/members/:userId - update a member's role
-router.patch('/:id/members/:userId', authenticate, requireWorkspaceRole('owner', 'id'), csrfProtection, validateBody(UpdateMemberRoleInput), controller.updateMemberRole);
+router.patch('/:id/members/:userId', authenticate, requireWorkspaceRole('admin', 'id'), csrfProtection, validateBody(UpdateMemberRoleInput), controller.updateMemberRole);
 
 // DELETE /api/workspaces/:id/members/:userId - remove a member from the workspace
 router.delete('/:id/members/:userId', authenticate, requireWorkspaceRole('admin', 'id'), csrfProtection, controller.removeMember);

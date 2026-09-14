@@ -146,9 +146,17 @@ export const CreateTaskInput = z.object({
   description: z.string().max(5000).optional().default(''),
   columnId: z.string(),
   priority: TaskPriority.default('Medium'),
-  assigneeId: z.string().optional(),
+  assigneeId: z.string().nullable().optional(),
   labels: z.array(z.string().max(40)).max(20).optional().default([]),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z
+    .preprocess((val) => {
+      if (typeof val === 'string' && val.trim() !== '') {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString();
+      }
+      if (val === null || val === '') return undefined;
+      return val;
+    }, z.string().datetime().optional()),
 });
 export type CreateTaskInput = z.infer<typeof CreateTaskInput>;
 
@@ -156,10 +164,12 @@ export const UpdateTaskInput = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(5000).optional(),
   priority: TaskPriority.optional(),
+  status: z.string().optional(),
+  columnId: z.string().optional(),
   assigneeId: z.string().nullable().optional(),
   labels: z.array(z.string().max(40)).max(20).optional(),
   dueDate: z.string().datetime().nullable().optional(),
-  expectedVersion: z.number().int().nonnegative(),
+  expectedVersion: z.number().int().nonnegative().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInput>;
 

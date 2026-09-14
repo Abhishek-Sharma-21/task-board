@@ -168,6 +168,35 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
 
   const typingNames = Object.values(typingUsers);
 
+  const updateComment = useCommentStore((state) => state.updateComment);
+  const deleteComment = useCommentStore((state) => state.deleteComment);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState('');
+
+  const handleStartEdit = (comment: { id: string; body: string }) => {
+    setEditingCommentId(comment.id);
+    setEditingBody(comment.body);
+  };
+
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editingBody.trim()) return;
+    try {
+      await updateComment(taskId, commentId, editingBody.trim());
+      setEditingCommentId(null);
+    } catch (err) {
+      // Handled
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!window.confirm('Delete this comment?')) return;
+    try {
+      await deleteComment(taskId, commentId);
+    } catch (err) {
+      // Handled
+    }
+  };
+
   return (
     <div className="space-y-6 pt-6 border-t border-border">
       <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-text-muted">
@@ -237,6 +266,8 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
         ) : comments.length > 0 ? (
           comments.map((comment) => {
             const isMe = comment.user.id === currentUser?.id;
+            const isEditing = editingCommentId === comment.id;
+
             return (
               <div
                 key={comment.id}
@@ -253,13 +284,57 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
                     <span className="text-xs font-bold text-text-primary uppercase tracking-tight truncate">
                       {comment.user.name} {isMe && <span className="text-[9px] text-primary font-mono font-normal">(YOU)</span>}
                     </span>
-                    <span className="text-[8px] font-mono text-text-faint tracking-widest shrink-0">
-                      {formatTimestamp(comment.createdAt)}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[8px] font-mono text-text-faint tracking-widest shrink-0">
+                        {formatTimestamp(comment.createdAt)}
+                      </span>
+                      {isMe && !isEditing && (
+                        <div className="flex items-center space-x-1 font-mono text-[9px]">
+                          <button
+                            onClick={() => handleStartEdit(comment)}
+                            className="text-text-muted hover:text-primary uppercase"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="text-text-muted hover:text-danger uppercase"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-text-muted font-medium leading-relaxed break-words whitespace-pre-wrap">
-                    {renderCommentBodyWithMentions(comment.body)}
-                  </p>
+
+                  {isEditing ? (
+                    <div className="space-y-2 mt-1">
+                      <textarea
+                        rows={2}
+                        value={editingBody}
+                        onChange={(e) => setEditingBody(e.target.value)}
+                        className="w-full bg-input border border-border rounded-sm p-2 text-xs font-mono text-text-primary focus:outline-none focus:border-primary"
+                      />
+                      <div className="flex space-x-2 font-mono text-[9px]">
+                        <button
+                          onClick={() => handleSaveEdit(comment.id)}
+                          className="bg-primary text-white px-2 py-1 rounded-sm font-bold uppercase"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingCommentId(null)}
+                          className="bg-surface-active text-text-muted px-2 py-1 rounded-sm uppercase"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-muted font-medium leading-relaxed break-words whitespace-pre-wrap">
+                      {renderCommentBodyWithMentions(comment.body)}
+                    </p>
+                  )}
                 </div>
               </div>
             );

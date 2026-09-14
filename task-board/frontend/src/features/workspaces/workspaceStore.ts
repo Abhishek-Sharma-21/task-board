@@ -29,7 +29,7 @@ interface WorkspaceState {
   isLoading: boolean;
   error: string | null;
 
-  fetchWorkspaces: () => Promise<void>;
+  fetchWorkspaces: (preferredWorkspaceId?: string) => Promise<void>;
   selectWorkspace: (workspaceId: string) => Promise<void>;
   resetWorkspaceScopedState: () => void;
   createWorkspace: (name: string) => Promise<Workspace>;
@@ -41,6 +41,12 @@ interface WorkspaceState {
   inviteMember: (workspaceId: string, email: string, role: 'admin' | 'member') => Promise<void>;
   changeMemberRole: (workspaceId: string, userId: string, role: 'admin' | 'member') => Promise<void>;
   removeMember: (workspaceId: string, userId: string) => Promise<void>;
+
+  completedTasks: any[];
+  isCompletedTasksLoading: boolean;
+  fetchCompletedTasks: (workspaceId: string, params?: { search?: string; fromDate?: string; toDate?: string }) => Promise<void>;
+  restoreTask: (taskId: string) => Promise<void>;
+  pruneCompletedTasks: (workspaceId: string, days?: number, beforeDate?: string) => Promise<number>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -68,16 +74,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     });
   },
 
-  fetchWorkspaces: async () => {
+  fetchWorkspaces: async (preferredWorkspaceId?: string) => {
     set({ isLoading: true, error: null });
     try {
       const res = await api.get<{ success: true; data: Workspace[] }>('/workspaces');
       const workspaces = res.data.data;
       set({ workspaces, isLoading: false });
       
+      const urlMatch = window.location.pathname.match(/\/workspaces\/([a-f0-9-]+)/i);
+      const urlWorkspaceId = urlMatch ? urlMatch[1] : null;
+
       const savedWorkspaceId = localStorage.getItem('tb_active_workspace');
       const currentActiveId = get().activeWorkspace?.id;
-      const targetId = currentActiveId || savedWorkspaceId;
+      const targetId =
+        (preferredWorkspaceId && preferredWorkspaceId !== 'undefined' ? preferredWorkspaceId : null) ||
+        (urlWorkspaceId && urlWorkspaceId !== 'undefined' ? urlWorkspaceId : null) ||
+        currentActiveId ||
+        savedWorkspaceId;
 
       const matchedWs = workspaces.find((w) => w.id === targetId);
       if (matchedWs) {
@@ -250,6 +263,55 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await get().fetchMembers(workspaceId, true);
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Failed to remove member');
+    }
+  },
+
+  completedTasks: [],
+  isCompletedTasksLoading: false,
+
+  fetchCompletedTasks: async (workspaceId, params = {}) => {
+    set({ isCompletedTasksLoading: true });
+    try {
+      const q = new URLSearchParams();
+      if (params.search) q.append('search', params.search);
+      if (params.fromDate) q.append('fromDate', params.fromDate);
+      if (params.toDate) q.append('toDate', params.toDate);
+
+      const res = await api.get<{ success: true; data: any[] }>(
+        `/workspaces/${workspaceId}/tasks/history?${q.toString()}`
+      );
+      set({ completedTasks: res.data.data, isCompletedTasksLoading: false });
+    } catch (err: any) {
+      console.error('Failed to fetch completed tasks history:', err);
+      set({ isCompletedTasksLoading: false });
+    }
+  },
+
+  restoreTask: async (taskId) => {
+    try {
+      await api.post<{ success: true; data: any }>(`/tasks/${taskId}/restore`);
+      set((state) => ({
+        completedTasks: state.completedTasks.filter((t) => t.id !== taskId),
+      }));
+      const activeWs = get().activeWorkspace;
+      if (activeWs) {
+        useProjectStore.getState().fetchProjects(activeWs.id);
+      }
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Failed to restore task');
+    }
+  },
+
+  pruneCompletedTasks: async (workspaceId, days, beforeDate) => {
+    try {
+      const res = await api.post<{ success: true; data: { prunedCount: number } }>(
+        `/workspaces/${workspaceId}/tasks/history/prune`,
+        { days, beforeDate }
+      );
+      await get().fetchCompletedTasks(workspaceId);
+      return res.data.data.prunedCount;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Failed to prune completed tasks');
     }
   },
 }));

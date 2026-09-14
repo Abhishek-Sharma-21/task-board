@@ -132,7 +132,9 @@ export const Home: React.FC = () => {
           </div>
 
           <button
-            onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/settings`)}
+            onClick={() => {
+              if (activeWorkspace?.id) navigate(`/workspaces/${activeWorkspace.id}/settings`);
+            }}
             className="text-xs font-mono font-bold text-primary hover:text-primary-hover uppercase tracking-wider"
           >
             Manage Projects &rarr;
@@ -147,7 +149,9 @@ export const Home: React.FC = () => {
               return (
                 <div
                   key={proj.id}
-                  onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/projects/${proj.id}`)}
+                  onClick={() => {
+                    if (activeWorkspace?.id) navigate(`/workspaces/${activeWorkspace.id}/projects/${proj.id}`);
+                  }}
                   className="bg-surface-hover border border-border hover:border-primary p-4 rounded-sm cursor-pointer transition-colors space-y-3"
                 >
                   <div className="flex justify-between items-start gap-2">
@@ -185,7 +189,9 @@ export const Home: React.FC = () => {
             title="No projects yet"
             description="Create your first project in this workspace to start managing tasks and collaborating with your team."
             actionLabel={userRole === 'owner' || userRole === 'admin' ? "Manage Projects" : undefined}
-            onAction={() => navigate(`/workspaces/${activeWorkspace?.id}/settings`)}
+            onAction={() => {
+              if (activeWorkspace?.id) navigate(`/workspaces/${activeWorkspace.id}/settings`);
+            }}
           />
         )}
       </div>

@@ -56,6 +56,53 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
       refreshTokenJtis: [tokens.jti],
     },
   });
+
+  // Automatically provision default workspace, project, board & columns for the new user
+  try {
+    const ws = await prisma.workspace.create({
+      data: {
+        name: `${user.name}'s Workspace`,
+        ownerId: user.id,
+      },
+    });
+
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: ws.id,
+        userId: user.id,
+        role: 'owner',
+      },
+    });
+
+    const project = await prisma.project.create({
+      data: {
+        name: 'My First Project',
+        description: 'Default project created for your workspace',
+        workspaceId: ws.id,
+        createdBy: user.id,
+      },
+    });
+
+    const board = await prisma.board.create({
+      data: {
+        name: 'Main Board',
+        projectId: project.id,
+        createdBy: user.id,
+      },
+    });
+
+    await prisma.boardColumn.createMany({
+      data: [
+        { name: 'To Do', boardId: board.id, position: 0 },
+        { name: 'In Progress', boardId: board.id, position: 1 },
+        { name: 'Review', boardId: board.id, position: 2 },
+        { name: 'Done', boardId: board.id, position: 3 },
+      ],
+    });
+  } catch (err) {
+    console.error('[auth.service] Error setting up initial workspace:', err);
+  }
+
   return { user: toPublic(user), ...tokens };
 }
 

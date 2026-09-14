@@ -8,6 +8,8 @@ import { useNotificationStore } from '../features/notifications/notificationStor
 import { useThemeStore } from '../stores/themeStore';
 import { connectSocket, disconnectSocket } from '../sockets/socket';
 import { Spinner } from '../components/Spinner';
+import { OfflineSyncBanner } from '../components/common/OfflineSyncBanner';
+import { ToastContainer } from '../components/common/ToastContainer';
 
 export const AppLayout: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -84,13 +86,22 @@ export const AppLayout: React.FC = () => {
   } = useBoardStore();
 
   useEffect(() => {
-    fetchWorkspaces();
+    fetchWorkspaces(workspaceId);
   }, [fetchWorkspaces]);
 
   useEffect(() => {
     if (user) {
-      connectSocket();
+      const socket = connectSocket();
       fetchNotifications();
+      const handleNewNotification = (newNotif: any) => {
+        useNotificationStore.setState((state) => ({
+          notifications: [newNotif, ...state.notifications.filter((n) => n.id !== newNotif.id)],
+        }));
+      };
+      socket?.on?.('notification:new', handleNewNotification);
+      return () => {
+        socket?.off?.('notification:new', handleNewNotification);
+      };
     }
   }, [user, fetchNotifications]);
 
@@ -108,8 +119,11 @@ export const AppLayout: React.FC = () => {
 
   // Sync route params with store state on direct load
   useEffect(() => {
-    if (workspaceId && workspaces.length > 0 && activeWorkspace?.id !== workspaceId) {
-      selectWorkspace(workspaceId);
+    if (workspaceId && workspaceId !== 'undefined' && workspaces.length > 0 && activeWorkspace?.id !== workspaceId) {
+      const matched = workspaces.find((w) => w.id === workspaceId);
+      if (matched) {
+        selectWorkspace(workspaceId);
+      }
     }
   }, [workspaceId, workspaces, activeWorkspace, selectWorkspace]);
 
@@ -415,7 +429,10 @@ export const AppLayout: React.FC = () => {
               <span>Home Overview</span>
             </button>
             <button
-              onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/settings`)}
+              onClick={() => {
+                const wsId = activeWorkspace?.id || workspaces[0]?.id;
+                if (wsId) navigate(`/workspaces/${wsId}/settings`);
+              }}
               className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
             >
               <span>Workspace Settings</span>
@@ -429,7 +446,10 @@ export const AppLayout: React.FC = () => {
               <span className="text-[9px] font-mono bg-surface text-text-muted px-1 py-0.5 rounded-sm">MEMBERS</span>
             </button>
             <button
-              onClick={() => navigate(`/workspaces/${activeWorkspace?.id}/activity`)}
+              onClick={() => {
+                const wsId = activeWorkspace?.id || workspaces[0]?.id;
+                if (wsId) navigate(`/workspaces/${wsId}/activity`);
+              }}
               className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
             >
               <span>Activity History</span>
@@ -581,8 +601,12 @@ export const AppLayout: React.FC = () => {
                 )}
               </div>
 
-              {/* User Profile Badge */}
-              <div className="flex items-center space-x-2 sm:space-x-3 bg-surface-hover border border-border py-1.5 px-2.5 rounded-sm shrink-0">
+              {/* User Profile Badge & Settings */}
+              <div
+                onClick={() => navigate(`/workspaces/${activeWorkspace?.id || workspaces[0]?.id || ''}/settings`)}
+                className="flex items-center space-x-2 sm:space-x-3 bg-surface-hover border border-border py-1.5 px-2.5 rounded-sm shrink-0 cursor-pointer hover:border-primary transition-colors"
+                title="Open Settings & Profile"
+              >
                 <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-xs text-white font-mono shrink-0">
                   {getInitials(user.name)}
                 </div>
@@ -590,7 +614,7 @@ export const AppLayout: React.FC = () => {
                   {user.name}
                 </span>
                 <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase shrink-0">
-                  {userRole}
+                  ⚙️ Settings
                 </span>
               </div>
             </div>
@@ -599,8 +623,10 @@ export const AppLayout: React.FC = () => {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-12">
+          <OfflineSyncBanner />
           <Outlet context={{ setIsBoardModalOpen }} />
         </main>
+        <ToastContainer />
       </div>
 
       {/* Workspace Custom Modal */}

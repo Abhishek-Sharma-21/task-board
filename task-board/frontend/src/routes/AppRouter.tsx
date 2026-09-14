@@ -32,6 +32,7 @@ export const AppRouter: React.FC = () => {
             <Route path="/workspaces/:workspaceId/activity" element={<ActivityPage />} />
             <Route path="/workspaces/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
             <Route path="/workflow" element={<WorkflowPage />} />
+            <Route path="/workspaces" element={<Home />} />
             <Route path="/workspaces/:workspaceId" element={<Home />} />
           </Route>
         </Route>

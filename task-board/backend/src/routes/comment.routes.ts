@@ -25,4 +25,20 @@ router.get(
   controller.getCommentsForTask
 );
 
+// PUT /api/comments/:id - Update comment body (Author)
+router.put(
+  '/comments/:id',
+  authenticate,
+  csrfProtection,
+  controller.updateComment
+);
+
+// DELETE /api/comments/:id - Delete comment (Author)
+router.delete(
+  '/comments/:id',
+  authenticate,
+  csrfProtection,
+  controller.deleteComment
+);
+
 export default router;

@@ -113,3 +113,40 @@ export async function getCommentsForTask(req: Request, res: Response, next: Next
     next(err);
   }
 }
+
+export async function updateComment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const commentId = requireParam(req, 'id');
+    const { body } = req.body;
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+    if (!body || typeof body !== 'string' || !body.trim()) {
+      res.status(400).json({ success: false, message: 'Comment body is required', errorCode: 'BAD_REQUEST' });
+      return;
+    }
+
+    const updated = await commentService.updateComment(commentId, userId, body);
+    res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteComment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const commentId = requireParam(req, 'id');
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+
+    await commentService.deleteComment(commentId, userId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}

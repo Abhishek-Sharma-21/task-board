@@ -48,6 +48,11 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
 
   const checklists = task.checklists || [];
   const completedChecklists = checklists.filter((c) => c.completed).length;
+  const isDone =
+    task.isCompleted ||
+    task.isArchived ||
+    task.status?.toLowerCase().includes('done') ||
+    task.status?.toLowerCase().includes('complete');
 
   return (
     <div
@@ -57,20 +62,36 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
       {...listeners}
       onClick={onClick}
       className={`group select-none border-2 border-border bg-kanban-card p-4 hover:border-border-strong transition-colors rounded-sm shadow-theme-md flex flex-col space-y-4 ${
-        task.isArchived ? 'opacity-60 bg-surface/50 border-dashed' : ''
+        task.isArchived ? 'opacity-60 bg-surface/50 border-dashed' : isDone ? 'bg-success-light/30 border-success-border/50' : ''
       }`}
     >
+      {/* Project Badge */}
+      {task.projectName && (
+        <div className="flex items-center">
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-primary bg-primary-light/50 border border-primary-border/60 px-1.5 py-0.5 rounded-sm">
+            📁 {task.projectName}
+          </span>
+        </div>
+      )}
+
       {/* Title & Priority */}
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-bold text-text-primary tracking-tight uppercase group-hover:text-primary transition-colors line-clamp-2 break-words min-w-0">
+        <h4 className={`text-sm font-bold text-text-primary tracking-tight uppercase group-hover:text-primary transition-colors line-clamp-2 break-words min-w-0 ${isDone ? 'line-through opacity-75' : ''}`}>
           {task.isArchived && <span className="text-[9px] font-mono font-bold bg-danger/20 text-danger px-1 rounded-xs mr-1">[ARCHIVED]</span>}
           {task.title}
         </h4>
-        <span
-          className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 border rounded-sm inline-block shrink-0 ${getPriorityStyle(task.priority)}`}
-        >
-          {task.priority}
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          {isDone && (
+            <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 border rounded-sm bg-success-light text-success border-success-border inline-block">
+              ✓ DONE
+            </span>
+          )}
+          <span
+            className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 border rounded-sm inline-block ${getPriorityStyle(task.priority)}`}
+          >
+            {task.priority}
+          </span>
+        </div>
       </div>
 
       {/* Description Preview */}

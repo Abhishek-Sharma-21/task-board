@@ -69,15 +69,20 @@ export async function addMember(req: Request, res: Response, next: NextFunction)
   try {
     const parsedBody = AddMemberInput.parse(req.body);
     const workspaceId = requireParam(req, 'id');
-    // Find user by email to get userId
-    const user = await prisma.user.findUnique({ where: { email: parsedBody.email } });
+    // Find user by email, or auto-provision a user record if inviting a new user
+    let user = await prisma.user.findUnique({ where: { email: parsedBody.email } });
     if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-        errorCode: 'NOT_FOUND',
+      const crypto = await import('node:crypto');
+      const bcrypt = await import('bcryptjs');
+      const randomPassword = crypto.randomUUID();
+      const passwordHash = await bcrypt.default.hash(randomPassword, 10);
+      user = await prisma.user.create({
+        data: {
+          name: parsedBody.email.split('@')[0],
+          email: parsedBody.email,
+          passwordHash,
+        },
       });
-      return;
     }
     const member = await workspaceService.addMemberToWorkspace(
       workspaceId,
@@ -97,11 +102,13 @@ export async function updateMemberRole(req: Request, res: Response, next: NextFu
   try {
     const parsedBody = UpdateMemberRoleInput.parse(req.body);
     const workspaceId = requireParam(req, 'id');
-    const userId = requireParam(req, 'userId');
+    const targetUserId = requireParam(req, 'userId');
+    const requesterId = req.userId;
     const member = await workspaceService.updateMemberRole(
       workspaceId,
-      userId,
-      parsedBody.role
+      targetUserId,
+      parsedBody.role,
+      requesterId
     );
     res.status(200).json({
       success: true,
@@ -115,8 +122,9 @@ export async function updateMemberRole(req: Request, res: Response, next: NextFu
 export async function removeMember(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const workspaceId = requireParam(req, 'id');
-    const userId = requireParam(req, 'userId');
-    await workspaceService.removeMemberFromWorkspace(workspaceId, userId);
+    const targetUserId = requireParam(req, 'userId');
+    const requesterId = req.userId;
+    await workspaceService.removeMemberFromWorkspace(workspaceId, targetUserId, requesterId);
     res.status(204).send();
   } catch (err) {
     next(err);

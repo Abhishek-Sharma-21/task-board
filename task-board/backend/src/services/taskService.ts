@@ -24,9 +24,21 @@ export interface TaskData {
   projectId: string;
   boardId: string;
   columnId: string;
+  status?: string;
+  isCompleted?: boolean;
+  projectName?: string;
+  boardName?: string;
+  columnName?: string;
   position: number;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   assigneeId?: string;
+  assignee?: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl?: string;
+  };
+  dependsOnTaskId?: string;
   createdBy: string;
   labels: string[];
   dueDate?: Date;
@@ -35,6 +47,59 @@ export interface TaskData {
   checklists?: ChecklistItemData[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+async function resolveAssignee(assigneeId?: string | null) {
+  if (!assigneeId || !isValidId(assigneeId)) return undefined;
+  const u = await prisma.user.findUnique({
+    where: { id: assigneeId },
+    select: { id: true, name: true, email: true, avatarUrl: true },
+  });
+  return u || undefined;
+}
+
+function formatTask(t: any, assigneeUser?: any): TaskData {
+  const userObj = assigneeUser || t.assignee;
+  const colName = t.column?.name || t.columnName || '';
+  const statusStr = colName || t.status || (t.isArchived ? 'Completed' : 'To Do');
+  const isDone =
+    t.isArchived ||
+    statusStr.toLowerCase().includes('done') ||
+    statusStr.toLowerCase().includes('complete');
+
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    projectId: t.projectId,
+    boardId: t.boardId,
+    columnId: t.columnId,
+    status: statusStr,
+    isCompleted: isDone,
+    projectName: t.column?.board?.project?.name || t.board?.project?.name || t.project?.name || t.projectName,
+    boardName: t.column?.board?.name || t.board?.name || t.boardName,
+    columnName: colName || undefined,
+    position: t.position,
+    priority: t.priority,
+    assigneeId: t.assigneeId || undefined,
+    assignee: userObj
+      ? {
+          id: userObj.id,
+          name: userObj.name,
+          email: userObj.email,
+          avatarUrl: userObj.avatarUrl || undefined,
+        }
+      : undefined,
+    dependsOnTaskId: t.dependsOnTaskId || undefined,
+    createdBy: t.createdBy,
+    labels: t.labels,
+    dueDate: t.dueDate || undefined,
+    version: t.version,
+    isArchived: t.isArchived || false,
+    checklists: t.checklists || [],
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
 }
 
 export async function archiveTask(taskId: string, isArchived: boolean = true): Promise<TaskData> {
@@ -48,9 +113,23 @@ export async function archiveTask(taskId: string, isArchived: boolean = true): P
   const updated = await prisma.task.update({
     where: { id: taskId },
     data: { isArchived, version: task.version + 1 },
-    include: { checklists: { orderBy: { position: 'asc' } } },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
   });
-  return formatTask(updated);
+  const assigneeUser = await resolveAssignee(updated.assigneeId);
+  return formatTask(updated, assigneeUser);
 }
 
 export async function getChecklistItems(taskId: string): Promise<ChecklistItemData[]> {
@@ -117,6 +196,69 @@ export async function deleteChecklistItem(itemId: string): Promise<void> {
   await prisma.checklistItem.delete({ where: { id: itemId } });
 }
 
+export async function duplicateTask(taskId: string, userId: string): Promise<TaskData> {
+  if (!isValidId(taskId) || !isValidId(userId)) {
+    throw new HttpError(400, 'INVALID_TASK_ID', 'Invalid task or user ID');
+  }
+
+  const original = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { checklists: true },
+  });
+
+  if (!original) {
+    throw new HttpError(404, 'TASK_NOT_FOUND', 'Task not found');
+  }
+
+  const lastTask = await prisma.task.findFirst({
+    where: { columnId: original.columnId },
+    orderBy: { position: 'desc' },
+  });
+
+  const position = lastTask ? lastTask.position + 1 : 0;
+
+  const duplicated = await prisma.task.create({
+    data: {
+      title: `${original.title} (Copy)`,
+      description: original.description,
+      projectId: original.projectId,
+      boardId: original.boardId,
+      columnId: original.columnId,
+      position,
+      priority: original.priority,
+      assigneeId: original.assigneeId,
+      createdBy: userId,
+      labels: original.labels,
+      dueDate: original.dueDate,
+      version: 0,
+      checklists: {
+        create: original.checklists.map((c) => ({
+          title: c.title,
+          completed: false,
+          position: c.position,
+        })),
+      },
+    },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
+  });
+
+  const assigneeUser = await resolveAssignee(duplicated.assigneeId);
+  return formatTask(duplicated, assigneeUser);
+}
+
 export async function createTask(
   boardId: string,
   userId: string,
@@ -125,13 +267,13 @@ export async function createTask(
     description?: string;
     columnId: string;
     priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-    assigneeId?: string;
+    assigneeId?: string | null;
     labels?: string[];
     dueDate?: string;
   }
 ): Promise<TaskData> {
   if (!isValidId(boardId) || !isValidId(userId) || !isValidId(payload.columnId)) {
-    throw new HttpError(400, 'INVALID_INPUT', 'Invalid board, user, or column ID');
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid input data');
   }
 
   const board = await prisma.board.findUnique({ where: { id: boardId } });
@@ -161,10 +303,24 @@ export async function createTask(
       dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
       version: 0,
     },
-    include: { checklists: { orderBy: { position: 'asc' } } },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
   });
 
-  return formatTask(task);
+  const assigneeUser = await resolveAssignee(task.assigneeId);
+  return formatTask(task, assigneeUser);
 }
 
 export async function getTasksForBoard(boardId: string): Promise<TaskData[]> {
@@ -174,9 +330,33 @@ export async function getTasksForBoard(boardId: string): Promise<TaskData[]> {
   const tasks = await prisma.task.findMany({
     where: { boardId },
     orderBy: { position: 'asc' },
-    include: { checklists: { orderBy: { position: 'asc' } } },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
   });
-  return tasks.map(formatTask);
+
+  const assigneeIds = Array.from(new Set(tasks.map((t) => t.assigneeId).filter(Boolean))) as string[];
+  const userMap = new Map<string, any>();
+  if (assigneeIds.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: assigneeIds } },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+    users.forEach((u) => userMap.set(u.id, u));
+  }
+
+  return tasks.map((t) => formatTask(t, t.assigneeId ? userMap.get(t.assigneeId) : undefined));
 }
 
 export async function getTaskById(taskId: string): Promise<TaskData | null> {
@@ -185,12 +365,26 @@ export async function getTaskById(taskId: string): Promise<TaskData | null> {
   }
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { checklists: { orderBy: { position: 'asc' } } },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
   });
   if (!task) {
     return null;
   }
-  return formatTask(task);
+  const assigneeUser = await resolveAssignee(task.assigneeId);
+  return formatTask(task, assigneeUser);
 }
 
 export async function updateTask(
@@ -199,10 +393,12 @@ export async function updateTask(
     title?: string;
     description?: string;
     priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+    status?: string;
+    columnId?: string;
     assigneeId?: string | null;
     labels?: string[];
     dueDate?: string | null;
-    expectedVersion: number;
+    expectedVersion?: number;
   }
 ): Promise<TaskData> {
   if (!isValidId(taskId)) {
@@ -214,7 +410,7 @@ export async function updateTask(
     throw new HttpError(404, 'TASK_NOT_FOUND', 'Task not found');
   }
 
-  if (task.version !== payload.expectedVersion) {
+  if (payload.expectedVersion !== undefined && task.version !== payload.expectedVersion) {
     throw new HttpError(409, 'VERSION_CONFLICT', 'Task has been updated by another user. Please refresh.');
   }
 
@@ -223,6 +419,36 @@ export async function updateTask(
   if (payload.description !== undefined) updates.description = payload.description;
   if (payload.priority !== undefined) updates.priority = payload.priority;
   if (payload.labels !== undefined) updates.labels = { set: payload.labels };
+
+  if (payload.columnId !== undefined) {
+    updates.columnId = payload.columnId;
+  } else if (payload.status !== undefined) {
+    const cols = await prisma.boardColumn.findMany({ where: { boardId: task.boardId } });
+    const matchCol = cols.find(
+      (c) => c.name.toLowerCase().trim() === payload.status!.toLowerCase().trim() ||
+             c.name.toLowerCase().includes(payload.status!.toLowerCase()) ||
+             payload.status!.toLowerCase().includes(c.name.toLowerCase())
+    );
+    if (matchCol) {
+      updates.columnId = matchCol.id;
+    } else if (payload.status.toLowerCase().includes('done') || payload.status.toLowerCase().includes('complete')) {
+      let doneCol = cols.find(
+        (c) => c.name.toLowerCase().includes('done') || c.name.toLowerCase().includes('complete')
+      );
+      if (!doneCol) {
+        const sorted = [...cols].sort((a, b) => b.position - a.position);
+        const nextPos = sorted.length > 0 ? sorted[0].position + 1 : 0;
+        doneCol = await prisma.boardColumn.create({
+          data: {
+            boardId: task.boardId,
+            name: 'Done',
+            position: nextPos,
+          },
+        });
+      }
+      updates.columnId = doneCol.id;
+    }
+  }
 
   if (payload.assigneeId === null) {
     updates.assigneeId = null;
@@ -241,10 +467,24 @@ export async function updateTask(
   const updated = await prisma.task.update({
     where: { id: taskId },
     data: updates,
-    include: { checklists: { orderBy: { position: 'asc' } } },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
   });
 
-  return formatTask(updated);
+  const assigneeUser = await resolveAssignee(updated.assigneeId);
+  return formatTask(updated, assigneeUser);
 }
 
 export async function moveTask(
@@ -318,10 +558,24 @@ export async function moveTask(
       position: toPosition,
       version: task.version + 1,
     },
-    include: { checklists: { orderBy: { position: 'asc' } } },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
   });
 
-  return formatTask(updated);
+  const assigneeUser = await resolveAssignee(updated.assigneeId);
+  return formatTask(updated, assigneeUser);
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
@@ -347,24 +601,160 @@ export async function deleteTask(taskId: string): Promise<void> {
   });
 }
 
-function formatTask(t: any): TaskData {
-  return {
-    id: t.id,
-    title: t.title,
-    description: t.description,
-    projectId: t.projectId,
-    boardId: t.boardId,
-    columnId: t.columnId,
-    position: t.position,
-    priority: t.priority,
-    assigneeId: t.assigneeId || undefined,
-    createdBy: t.createdBy,
-    labels: t.labels,
-    dueDate: t.dueDate || undefined,
-    version: t.version,
-    isArchived: t.isArchived || false,
-    checklists: t.checklists || [],
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
+export async function getCompletedTasksHistory(
+  workspaceId: string,
+  options: { search?: string; fromDate?: string; toDate?: string } = {}
+): Promise<TaskData[]> {
+  if (!isValidId(workspaceId)) {
+    throw new HttpError(400, 'INVALID_WORKSPACE_ID', 'Invalid workspace ID');
+  }
+
+  const projects = await prisma.project.findMany({
+    where: { workspaceId },
+    select: { id: true },
+  });
+  const projectIds = projects.map((p) => p.id);
+
+  const whereClause: any = {
+    projectId: { in: projectIds },
+    OR: [
+      { isArchived: true },
+      { column: { name: { contains: 'Done', mode: 'insensitive' } } },
+      { column: { name: { contains: 'Complete', mode: 'insensitive' } } },
+    ],
   };
+
+  if (options.search?.trim()) {
+    whereClause.title = { contains: options.search.trim(), mode: 'insensitive' };
+  }
+
+  if (options.fromDate || options.toDate) {
+    whereClause.updatedAt = {};
+    if (options.fromDate) whereClause.updatedAt.gte = new Date(options.fromDate);
+    if (options.toDate) whereClause.updatedAt.lte = new Date(options.toDate);
+  }
+
+  const tasks = await prisma.task.findMany({
+    where: whereClause,
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  const formatted = await Promise.all(
+    tasks.map(async (t) => {
+      const assigneeUser = await resolveAssignee(t.assigneeId);
+      return formatTask(t, assigneeUser);
+    })
+  );
+
+  return formatted;
+}
+
+export async function restoreTask(taskId: string): Promise<TaskData> {
+  if (!isValidId(taskId)) {
+    throw new HttpError(400, 'INVALID_TASK_ID', 'Invalid task ID');
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { column: { select: { name: true } } },
+  });
+
+  if (!task) {
+    throw new HttpError(404, 'TASK_NOT_FOUND', 'Task not found');
+  }
+
+  const cols = await prisma.boardColumn.findMany({
+    where: { boardId: task.boardId },
+    orderBy: { position: 'asc' },
+  });
+
+  const activeCol = cols.find(
+    (c) => !c.name.toLowerCase().includes('done') && !c.name.toLowerCase().includes('complete')
+  ) || cols[0];
+
+  const updated = await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      isArchived: false,
+      columnId: activeCol ? activeCol.id : task.columnId,
+      version: task.version + 1,
+    },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
+  });
+
+  const assigneeUser = await resolveAssignee(updated.assigneeId);
+  return formatTask(updated, assigneeUser);
+}
+
+export async function pruneCompletedTasks(
+  workspaceId: string,
+  options: { days?: number; beforeDate?: string } = {}
+): Promise<number> {
+  if (!isValidId(workspaceId)) {
+    throw new HttpError(400, 'INVALID_WORKSPACE_ID', 'Invalid workspace ID');
+  }
+
+  const cutoff = options.beforeDate
+    ? new Date(options.beforeDate)
+    : options.days !== undefined && options.days > 0
+    ? new Date(Date.now() - options.days * 24 * 60 * 60 * 1000)
+    : null;
+
+  if (!cutoff) {
+    return 0;
+  }
+
+  const projects = await prisma.project.findMany({
+    where: { workspaceId },
+    select: { id: true },
+  });
+  const projectIds = projects.map((p) => p.id);
+
+  const completedTasks = await prisma.task.findMany({
+    where: {
+      projectId: { in: projectIds },
+      updatedAt: { lt: cutoff },
+      OR: [
+        { isArchived: true },
+        { column: { name: { contains: 'Done', mode: 'insensitive' } } },
+        { column: { name: { contains: 'Complete', mode: 'insensitive' } } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  const ids = completedTasks.map((t) => t.id);
+  if (ids.length > 0) {
+    await prisma.checklistItem.deleteMany({ where: { taskId: { in: ids } } });
+    await prisma.task.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  return ids.length;
 }

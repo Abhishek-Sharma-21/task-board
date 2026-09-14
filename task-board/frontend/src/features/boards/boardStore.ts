@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../../api/client';
 import type { Board, BoardColumn, Task } from '../../schemas';
+import { useToastStore } from '../../components/common/toastStore';
 
 interface BoardState {
   boards: Board[];
@@ -49,6 +50,7 @@ interface BoardState {
   ) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   archiveTask: (taskId: string, isArchived?: boolean) => Promise<void>;
+  duplicateTask: (taskId: string) => Promise<void>;
   addChecklistItem: (taskId: string, title: string) => Promise<void>;
   toggleChecklistItem: (itemId: string, completed: boolean) => Promise<void>;
   deleteChecklistItem: (itemId: string) => Promise<void>;
@@ -272,9 +274,36 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   archiveTask: async (taskId, isArchived = true) => {
     try {
       const response = await api.patch<{ success: boolean; data: Task }>(`/tasks/${taskId}/archive`, { isArchived });
-      get().addOrUpdateTaskRealtime(response.data.data);
+      const updated = response.data.data;
+      get().addOrUpdateTaskRealtime(updated);
+      useToastStore.getState().addToast({
+        message: isArchived ? 'Task Archived' : 'Task Restored',
+        type: 'info',
+        undoAction: isArchived ? () => get().archiveTask(taskId, false) : undefined,
+      });
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to archive task' });
+    }
+  },
+
+  duplicateTask: async (taskId) => {
+    set({ error: null });
+    try {
+      const response = await api.post<{ success: true; data: Task }>(`/tasks/${taskId}/duplicate`);
+      const duplicated = response.data.data;
+      set((state) => {
+        const colId = duplicated.columnId;
+        const currentList = state.tasksByColumn[colId] || [];
+        return {
+          tasksByColumn: {
+            ...state.tasksByColumn,
+            [colId]: [...currentList, duplicated].sort((a, b) => a.position - b.position),
+          },
+        };
+      });
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to duplicate task' });
+      throw err;
     }
   },
 

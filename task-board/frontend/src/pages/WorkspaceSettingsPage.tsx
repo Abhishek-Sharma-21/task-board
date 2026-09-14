@@ -14,6 +14,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
 
   const {
     activeWorkspace,
+    isLoading,
     members,
     updateWorkspace,
     pruneActivityLogs,
@@ -23,6 +24,11 @@ export const WorkspaceSettingsPage: React.FC = () => {
     changeMemberRole,
     removeMember,
     fetchMembers,
+    completedTasks,
+    isCompletedTasksLoading,
+    fetchCompletedTasks,
+    restoreTask,
+    pruneCompletedTasks,
   } = useWorkspaceStore();
 
   const { projects, fetchProjects, createProject, deleteProject } = useProjectStore();
@@ -35,7 +41,22 @@ export const WorkspaceSettingsPage: React.FC = () => {
   } = useProjectMemberStore();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'general' | 'members' | 'projects' | 'permissions' | 'danger'>('general');
+  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'members' | 'projects' | 'completed' | 'permissions' | 'danger'>('profile');
+
+  // Task History State
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyFromDate, setHistoryFromDate] = useState('');
+  const [historyToDate, setHistoryToDate] = useState('');
+  const [selectedHistoryProject, setSelectedHistoryProject] = useState('');
+  const [restoringTaskId, setRestoringTaskId] = useState<string | null>(null);
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+  const [pruneDays, setPruneDays] = useState<number>(30);
+  const [isPruningTasks, setIsPruningTasks] = useState(false);
+  const [pruneTasksMessage, setPruneTasksMessage] = useState<string | null>(null);
+
+  // Profile Edit State
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileSaved, setProfileSaved] = useState(false);
 
   // General Settings State
   const [workspaceName, setWorkspaceName] = useState('');
@@ -81,6 +102,45 @@ export const WorkspaceSettingsPage: React.FC = () => {
       fetchProjects(activeWorkspace.id);
     }
   }, [activeWorkspace, fetchMembers, fetchProjects]);
+
+  useEffect(() => {
+    if (activeWorkspace && activeTab === 'completed') {
+      fetchCompletedTasks(activeWorkspace.id, {
+        search: historySearch,
+        fromDate: historyFromDate,
+        toDate: historyToDate,
+      });
+    }
+  }, [activeWorkspace, activeTab, historySearch, historyFromDate, historyToDate, fetchCompletedTasks]);
+
+  const handleRestoreTask = async (taskId: string) => {
+    if (!activeWorkspace || restoringTaskId) return;
+    setRestoringTaskId(taskId);
+    setRestoreMessage(null);
+    try {
+      await restoreTask(taskId);
+      setRestoreMessage('Task successfully restored back to active board!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to restore task');
+    } finally {
+      setRestoringTaskId(null);
+    }
+  };
+
+  const handlePruneCompletedTasksSubmit = async () => {
+    if (!activeWorkspace || isPruningTasks) return;
+    if (!window.confirm(`Are you sure you want to prune completed tasks older than ${pruneDays} days? This action cannot be undone.`)) return;
+    setIsPruningTasks(true);
+    setPruneTasksMessage(null);
+    try {
+      const count = await pruneCompletedTasks(activeWorkspace.id, pruneDays);
+      setPruneTasksMessage(`Successfully pruned ${count} completed task(s).`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to prune completed tasks');
+    } finally {
+      setIsPruningTasks(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedProject) {
@@ -260,23 +320,25 @@ export const WorkspaceSettingsPage: React.FC = () => {
     }
   };
 
-  if (!activeWorkspace) {
+  if (isLoading && !activeWorkspace) {
     return (
-      <div className="py-12 text-center text-xs font-mono text-text-muted">
-        No active workspace selected.
+      <div className="py-12 flex justify-center items-center gap-2 text-xs font-mono text-text-muted">
+        <Spinner />
+        <span>Loading workspace settings...</span>
       </div>
     );
   }
 
-  if (!isAdminOrOwner) {
+  if (!activeWorkspace) {
     return (
-      <div className="border-2 border-border bg-surface p-8 text-center rounded-sm max-w-lg mx-auto my-12">
-        <h2 className="text-xl font-black uppercase text-danger tracking-tight">
-          403 Unauthorized Access
-        </h2>
-        <p className="mt-2 text-xs text-text-muted font-mono">
-          Workspace Settings are restricted to Workspace Owners and Admins only.
-        </p>
+      <div className="py-12 text-center text-xs font-mono text-text-muted space-y-4">
+        <p>No active workspace selected.</p>
+        <button
+          onClick={() => navigate('/')}
+          className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-sm font-bold uppercase"
+        >
+          Go to Home
+        </button>
       </div>
     );
   }
@@ -291,18 +353,28 @@ export const WorkspaceSettingsPage: React.FC = () => {
       {/* Header */}
       <div>
         <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block mb-1">
-          SETTINGS & CONFIGURATION
+          SETTINGS & PROFILE
         </span>
         <h1 className="text-3xl font-black uppercase tracking-tight text-text-primary">
-          {activeWorkspace.name} SETTINGS.
+          SETTINGS & ACCOUNT.
         </h1>
         <p className="text-xs text-text-secondary font-mono mt-1">
-          Manage workspace identity, membership, projects, permissions, and security.
+          Manage your personal profile, account preferences, theme, and workspace configuration.
         </p>
       </div>
 
       {/* Tabs Navigation */}
       <div className="flex border-b border-border space-x-1 font-mono text-xs font-bold uppercase tracking-wider overflow-x-auto whitespace-nowrap">
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`py-2.5 px-4 rounded-t-sm border-t border-l border-r transition-colors shrink-0 ${
+            activeTab === 'profile'
+              ? 'bg-surface border-border text-primary font-black border-b-2 border-b-primary'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          Profile & Account
+        </button>
         <button
           onClick={() => setActiveTab('general')}
           className={`py-2.5 px-4 rounded-t-sm border-t border-l border-r transition-colors shrink-0 ${
@@ -334,6 +406,16 @@ export const WorkspaceSettingsPage: React.FC = () => {
           Projects ({projects.length})
         </button>
         <button
+          onClick={() => setActiveTab('completed')}
+          className={`py-2.5 px-4 rounded-t-sm border-t border-l border-r transition-colors shrink-0 ${
+            activeTab === 'completed'
+              ? 'bg-surface border-border text-primary font-black border-b-2 border-b-primary'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          Task History ({completedTasks.length})
+        </button>
+        <button
           onClick={() => setActiveTab('permissions')}
           className={`py-2.5 px-4 rounded-t-sm border-t border-l border-r transition-colors shrink-0 ${
             activeTab === 'permissions'
@@ -354,6 +436,67 @@ export const WorkspaceSettingsPage: React.FC = () => {
           Danger Zone
         </button>
       </div>
+
+      {/* TAB CONTENT: PROFILE & ACCOUNT */}
+      {activeTab === 'profile' && (
+        <div className="bg-surface border border-border rounded-sm p-6 space-y-6">
+          <div className="flex items-center space-x-4 border-b border-border pb-6">
+            <div className="w-14 h-14 bg-primary text-white font-mono font-black text-xl flex items-center justify-center rounded-sm">
+              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'TB'}
+            </div>
+            <div>
+              <h3 className="text-xl font-black uppercase text-text-primary">{user?.name || 'Workspace Member'}</h3>
+              <p className="text-xs font-mono text-text-muted">{user?.email || 'user@example.com'}</p>
+              <span className="inline-block mt-2 text-[9px] font-mono border border-border px-2 py-0.5 rounded-sm uppercase text-text-secondary">
+                ROLE: {userRole}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-4 max-w-md">
+            <h4 className="text-xs font-mono font-bold uppercase text-text-muted">Account Information</h4>
+            <div>
+              <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => {
+                  setProfileName(e.target.value);
+                  setProfileSaved(false);
+                }}
+                className="w-full bg-input border border-border rounded-sm py-2 px-3 text-text-primary text-xs font-bold focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase font-mono tracking-wider text-text-muted mb-1">
+                Email Address
+              </label>
+              <input
+                type="text"
+                disabled
+                value={user?.email || ''}
+                className="w-full bg-surface-hover border border-border rounded-sm py-2 px-3 text-text-muted text-xs font-mono cursor-not-allowed"
+              />
+            </div>
+
+            {profileSaved && (
+              <div className="p-2.5 bg-success-light border border-success-border rounded-sm text-xs font-mono text-success font-bold">
+                ✓ Profile changes saved successfully
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setProfileSaved(true)}
+              className="bg-primary hover:bg-primary-hover text-white text-xs font-mono font-bold uppercase px-4 py-2 rounded-sm transition-colors"
+            >
+              Save Profile Changes
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* TAB CONTENT: GENERAL */}
       {activeTab === 'general' && (
@@ -886,6 +1029,177 @@ export const WorkspaceSettingsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB CONTENT: COMPLETED TASKS HISTORY */}
+      {activeTab === 'completed' && (
+        <div className="bg-surface border border-border rounded-sm p-6 space-y-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-sm font-black uppercase text-text-primary">Completed Task History & Retrieval</h3>
+              <p className="text-xs text-text-muted font-mono mt-0.5">
+                View, filter by date, and restore completed or archived tasks back to active boards.
+              </p>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="border border-border bg-surface-hover p-4 rounded-sm space-y-3 font-mono text-xs">
+            <span className="text-[10px] uppercase tracking-wider text-primary font-bold block">
+              Filter Completed Tasks by Project, Date & Keyword
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[9px] uppercase text-text-muted mb-1">Project</label>
+                <select
+                  value={selectedHistoryProject}
+                  onChange={(e) => setSelectedHistoryProject(e.target.value)}
+                  className="w-full bg-input border border-border rounded-sm py-1.5 px-2.5 text-text-primary text-xs focus:outline-none focus:border-primary"
+                >
+                  <option value="">All Projects</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase text-text-muted mb-1">Search Title</label>
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Task title..."
+                  className="w-full bg-input border border-border rounded-sm py-1.5 px-2.5 text-text-primary text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase text-text-muted mb-1">From Date</label>
+                <input
+                  type="date"
+                  value={historyFromDate}
+                  onChange={(e) => setHistoryFromDate(e.target.value)}
+                  className="w-full bg-input border border-border rounded-sm py-1.5 px-2.5 text-text-primary text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase text-text-muted mb-1">To Date</label>
+                <input
+                  type="date"
+                  value={historyToDate}
+                  onChange={(e) => setHistoryToDate(e.target.value)}
+                  className="w-full bg-input border border-border rounded-sm py-1.5 px-2.5 text-text-primary text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+          </div>
+
+          {restoreMessage && (
+            <div className="p-3 bg-success-light border border-success-border text-success font-mono text-xs rounded-sm font-bold">
+              ✓ {restoreMessage}
+            </div>
+          )}
+
+          {/* Completed Tasks Table */}
+          <div className="border border-border rounded-sm overflow-x-auto">
+            {isCompletedTasksLoading ? (
+              <div className="p-8 text-center text-xs font-mono text-text-muted flex justify-center items-center gap-2">
+                <Spinner />
+                <span>Loading completed task history...</span>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse font-mono text-xs min-w-[650px]">
+                <thead>
+                  <tr className="bg-surface-hover border-b border-border text-[9px] uppercase tracking-widest text-text-muted">
+                    <th className="py-2.5 px-4">Task Title</th>
+                    <th className="py-2.5 px-4">Project / Board</th>
+                    <th className="py-2.5 px-4">Completed Date</th>
+                    <th className="py-2.5 px-4">Assignee</th>
+                    <th className="py-2.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {completedTasks
+                    .filter((t) => !selectedHistoryProject || (t.projectName || '').toLowerCase() === selectedHistoryProject.toLowerCase())
+                    .map((t) => (
+                    <tr key={t.id} className="hover:bg-surface-hover/50">
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-text-primary block line-through opacity-80">{t.title}</span>
+                        {t.description && <span className="text-text-muted text-[10px] line-clamp-1">{t.description}</span>}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-primary bg-primary-light/50 border border-primary-border/60 px-1.5 py-0.5 rounded-sm mb-1 block w-fit">
+                          📁 {t.projectName || 'Project'}
+                        </span>
+                        <span className="text-text-muted text-[10px] block">{t.boardName || 'Board'} ({t.columnName || 'Done'})</span>
+                      </td>
+                      <td className="py-3 px-4 text-text-muted text-[10px]">
+                        {new Date(t.updatedAt).toLocaleDateString()} {new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="py-3 px-4 text-text-secondary">
+                        {t.assignee?.name || 'Unassigned'}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleRestoreTask(t.id)}
+                          disabled={restoringTaskId === t.id}
+                          className="bg-primary hover:bg-primary-hover disabled:opacity-50 text-white text-[10px] uppercase font-bold px-3 py-1 rounded-sm transition-colors"
+                        >
+                          {restoringTaskId === t.id ? 'Restoring...' : 'Restore Task'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {completedTasks.filter((t) => !selectedHistoryProject || (t.projectName || '').toLowerCase() === selectedHistoryProject.toLowerCase()).length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-text-muted italic">
+                        No completed tasks found for the selected criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Cleanup & Retention Policy */}
+          {isAdminOrOwner && (
+            <div className="pt-6 border-t border-border space-y-4 font-mono text-xs">
+              <div>
+                <h4 className="text-sm font-black uppercase text-text-primary">Cleanup & Retention Policy</h4>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Purge old completed tasks older than a specified duration.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={pruneDays}
+                  onChange={(e) => setPruneDays(parseInt(e.target.value, 10))}
+                  className="bg-input border border-border rounded-sm py-2 px-3 text-text-primary text-xs focus:outline-none"
+                >
+                  <option value={7}>Tasks older than 7 Days</option>
+                  <option value={30}>Tasks older than 30 Days (Default)</option>
+                  <option value={90}>Tasks older than 90 Days</option>
+                  <option value={365}>Tasks older than 1 Year (365 Days)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handlePruneCompletedTasksSubmit}
+                  disabled={isPruningTasks}
+                  className="bg-surface border border-border hover:border-danger text-danger font-mono text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-sm transition-colors flex items-center gap-2"
+                >
+                  {isPruningTasks && <Spinner />}
+                  {isPruningTasks ? 'Purging Tasks...' : 'Purge Expired Completed Tasks Now'}
+                </button>
+              </div>
+
+              {pruneTasksMessage && (
+                <p className="text-xs font-mono text-success">{pruneTasksMessage}</p>
+              )}
             </div>
           )}
         </div>

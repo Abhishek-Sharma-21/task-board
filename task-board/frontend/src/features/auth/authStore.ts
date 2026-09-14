@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { isAxiosError, type AxiosError } from 'axios';
 import { api } from '../../api/client';
+import { disconnectSocket } from '../../sockets/socket';
 import type { User } from '../../schemas';
 
 interface AuthResponseData {
@@ -84,6 +85,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      disconnectSocket();
       set({ user: null, accessToken: null, isLoading: false });
     }
   },

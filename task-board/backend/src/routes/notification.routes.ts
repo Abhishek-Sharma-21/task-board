@@ -12,16 +12,28 @@ router.get(
   controller.getNotifications
 );
 
-// PUT /api/notifications/read-all - Mark all notifications as read
+// PUT/PATCH /api/notifications/read-all - Mark all notifications as read
 router.put(
   '/read-all',
   authenticate,
   csrfProtection,
   controller.markAllAsRead
 );
+router.patch(
+  '/read-all',
+  authenticate,
+  csrfProtection,
+  controller.markAllAsRead
+);
 
-// PUT /api/notifications/:id/read - Mark a notification as read
+// PUT/PATCH /api/notifications/:id/read - Mark a notification as read
 router.put(
+  '/:id/read',
+  authenticate,
+  csrfProtection,
+  controller.markAsRead
+);
+router.patch(
   '/:id/read',
   authenticate,
   csrfProtection,

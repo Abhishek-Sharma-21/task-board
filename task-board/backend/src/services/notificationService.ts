@@ -1,4 +1,5 @@
 import { prisma } from '../config/db.js';
+import { broadcast } from '../sockets/socket.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -30,9 +31,34 @@ export async function createNotification(
       read: false,
       link,
     },
+    include: {
+      sender: {
+        select: { id: true, name: true, email: true },
+      },
+    },
   });
 
-  return notif;
+  const formattedNotif = {
+    id: notif.id,
+    userId: notif.userId,
+    sender: notif.sender
+      ? {
+          id: notif.sender.id,
+          name: notif.sender.name,
+          email: notif.sender.email,
+        }
+      : null,
+    type: notif.type,
+    title: notif.title,
+    message: notif.message,
+    read: notif.read,
+    link: notif.link,
+    createdAt: notif.createdAt,
+  };
+
+  broadcast(`user:${userId}`, 'notification:new', formattedNotif);
+
+  return formattedNotif;
 }
 
 export async function getNotificationsForUser(userId: string): Promise<any[]> {

@@ -143,9 +143,17 @@ export const CreateTaskInput = z.object({
   description: z.string().max(5000).optional().default(''),
   columnId: z.string(),
   priority: TaskPriority.default('Medium'),
-  assigneeId: z.string().optional(),
+  assigneeId: z.string().nullable().optional(),
   labels: z.array(z.string().max(40)).max(20).optional().default([]),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z
+    .preprocess((val) => {
+      if (typeof val === 'string' && val.trim() !== '') {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString();
+      }
+      if (val === null || val === '') return undefined;
+      return val;
+    }, z.string().datetime().optional()),
 });
 export type CreateTaskInput = z.infer<typeof CreateTaskInput>;
 
@@ -224,9 +232,20 @@ export const TaskSchema = z.object({
   projectId: z.string(),
   boardId: z.string(),
   columnId: z.string(),
+  status: z.string().optional(),
+  isCompleted: z.boolean().optional(),
+  projectName: z.string().optional(),
+  boardName: z.string().optional(),
+  columnName: z.string().optional(),
   position: z.number(),
   priority: TaskPriority,
   assigneeId: z.string().nullable().optional(),
+  assignee: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    avatarUrl: z.string().optional(),
+  }).optional(),
   createdBy: z.string(),
   labels: z.array(z.string()),
   dueDate: z.union([z.date(), z.string()]).nullable().optional(),
@@ -285,3 +304,22 @@ export const SetProjectHeadInput = z.object({
   userId: z.string(),
 });
 export type SetProjectHeadInput = z.infer<typeof SetProjectHeadInput>;
+
+export const TaskChatMessageSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  userId: z.string(),
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    avatarUrl: z.string().optional(),
+  }),
+  body: z.string(),
+  isEdited: z.boolean().optional(),
+  isDeleted: z.boolean().optional(),
+  status: z.enum(['sending', 'sent', 'failed']).optional(),
+  createdAt: z.union([z.date(), z.string()]),
+  updatedAt: z.union([z.date(), z.string()]),
+});
+export type TaskChatMessage = z.infer<typeof TaskChatMessageSchema>;

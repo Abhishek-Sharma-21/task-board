@@ -19,6 +19,7 @@ model User {
   workspaceMemberships WorkspaceMember[]
   projectMemberships   ProjectMember[]
   comments             Comment[]
+  chatMessages         TaskChatMessage[]
   activities           Activity[]
   notificationsReceived Notification[]    @relation("RecipientUser")
   notificationsSent     Notification[]    @relation("SenderUser")
@@ -70,6 +71,7 @@ model Project {
   name        String
   description String           @default("")
   status      String           @default("Active") // "Planning", "Active", "Completed", "Archived"
+  healthStatus String          @default("On Track") // "On Track", "At Risk", "Delayed", "Completed", "Archived"
   workspaceId String
   workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy   String
@@ -103,30 +105,33 @@ model BoardColumn {
 }
 
 model Task {
-  id          String          @id @default(uuid())
-  title       String
-  description String          @default("")
-  projectId   String
-  boardId     String
-  columnId    String
-  column      BoardColumn     @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  position    Int
-  priority    String          @default("Medium") // "Low", "Medium", "High", "Urgent"
-  assigneeId  String?
-  createdBy   String
-  labels      String[]
-  dueDate     DateTime?
-  version     Int             @default(0)
-  isArchived  Boolean         @default(false)
-  comments    Comment[]
-  checklists  ChecklistItem[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id              String          @id @default(uuid())
+  title           String
+  description     String          @default("")
+  projectId       String
+  boardId         String
+  columnId        String
+  column          BoardColumn     @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  position        Int
+  priority        String          @default("Medium") // "Low", "Medium", "High", "Urgent"
+  assigneeId      String?
+  dependsOnTaskId String?
+  createdBy       String
+  labels          String[]
+  dueDate         DateTime?
+  version         Int             @default(0)
+  isArchived      Boolean         @default(false)
+  comments        Comment[]
+  chatMessages    TaskChatMessage[]
+  checklists      ChecklistItem[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([boardId])
   @@index([columnId])
   @@index([projectId])
   @@index([assigneeId])
+  @@index([dependsOnTaskId])
 }
 
 model ChecklistItem {
@@ -187,3 +192,20 @@ model Activity {
 
   @@index([workspaceId])
 }
+
+model TaskChatMessage {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  isEdited  Boolean  @default(false)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId, createdAt])
+  @@index([userId])
+}
+

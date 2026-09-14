@@ -86,6 +86,15 @@ router.put(
   controller.archiveTask
 );
 
+// POST /api/tasks/:id/duplicate - Duplicate task
+router.post(
+  '/tasks/:id/duplicate',
+  authenticate,
+  csrfProtection,
+  requireTaskRole('member', 'id'),
+  controller.duplicateTask
+);
+
 // Checklist routes
 // POST /api/tasks/:taskId/checklists - Add checklist item
 router.post(
@@ -110,6 +119,29 @@ router.delete(
   authenticate,
   csrfProtection,
   controller.deleteChecklistItem
+);
+
+// Workspace Completed Task History & Retention
+router.get(
+  '/workspaces/:workspaceId/tasks/history',
+  authenticate,
+  controller.getCompletedTasksHistory
+);
+
+router.post(
+  '/workspaces/:workspaceId/tasks/history/prune',
+  authenticate,
+  csrfProtection,
+  controller.pruneCompletedTasks
+);
+
+// Restore completed/archived task back to active board
+router.post(
+  '/tasks/:id/restore',
+  authenticate,
+  csrfProtection,
+  requireTaskRole('member', 'id'),
+  controller.restoreTask
 );
 
 export default router;

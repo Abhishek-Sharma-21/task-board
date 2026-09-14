@@ -8,6 +8,7 @@ import { useAuthStore } from '../auth/authStore';
 import { ProjectOverview } from './ProjectOverview';
 import { ProjectCalendarView } from './ProjectCalendarView';
 import { TaskDrawer } from '../boards/TaskDrawer';
+import { TaskWorkspaceModal } from '../boards/TaskWorkspaceModal';
 import { ActivityPage } from '../../pages/ActivityPage';
 import type { Task } from '../../schemas';
 
@@ -24,6 +25,7 @@ export const ProjectPage: React.FC = () => {
   const [addingMember, setAddingMember] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'boards' | 'calendar' | 'activity'>('overview');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
   const user = useAuthStore((state) => state.user);
   const { members: workspaceMembers } = useWorkspaceStore();
@@ -289,7 +291,23 @@ export const ProjectPage: React.FC = () => {
         <ActivityPage />
       )}
 
-      <TaskDrawer task={selectedTask} onClose={() => setSelectedTask(null)} />
+      {!isWorkspaceModalOpen && (
+        <TaskDrawer
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onExpandWorkspace={() => setIsWorkspaceModalOpen(true)}
+        />
+      )}
+
+      <TaskWorkspaceModal
+        task={selectedTask}
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => {
+          setIsWorkspaceModalOpen(false);
+          setSelectedTask(null);
+        }}
+        onMinimizeToDrawer={() => setIsWorkspaceModalOpen(false)}
+      />
     </div>
   );
 };

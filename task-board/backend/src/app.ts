@@ -13,14 +13,40 @@ import notificationRouter from './routes/notification.routes.js';
 import activityRouter from './routes/activity.routes.js';
 import projectMemberRouter from './routes/projectMember.routes.js';
 import analyticsRouter from './routes/analytics.routes.js';
+import taskChatRouter from './routes/taskChat.routes.js';
 import { errorHandler, notFound } from './utils/errors.js';
 
 export function createApp(): express.Express {
   const app = express();
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'http://localhost:19006',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:8081',
+    ...env.corsOrigin,
+  ];
+
   app.use(
     cors({
-      origin: env.corsOrigin,
+      origin: (origin, callback) => {
+        // Allow mobile native apps, curl, Postman (no origin header)
+        if (!origin) return callback(null, true);
+        // Allow all origins in development mode
+        if (env.nodeEnv === 'development') return callback(null, true);
+        if (allowedOrigins.some((allowed) => origin.startsWith(allowed))) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
       credentials: true,
     }),
   );
@@ -41,6 +67,7 @@ export function createApp(): express.Express {
   app.use('/api', activityRouter);
   app.use('/api', projectMemberRouter);
   app.use('/api', analyticsRouter);
+  app.use('/api', taskChatRouter);
 
   app.use(notFound);
   app.use(errorHandler);

@@ -1,5 +1,6 @@
 import { HttpError } from '../utils/errors.js';
 import { prisma } from '../config/db.js';
+import * as activityService from './activityService.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -99,11 +100,14 @@ export async function addMemberToWorkspace(
     throw new HttpError(409, 'ALREADY_A_MEMBER', 'User is already a member of this workspace');
   }
 
+  // Prevent assigning 'owner' role via normal add/invite
+  const safeRole = role === 'owner' ? 'admin' : role;
+
   const member = await prisma.workspaceMember.create({
     data: {
       workspaceId,
       userId,
-      role,
+      role: safeRole,
     },
   });
 
@@ -112,10 +116,16 @@ export async function addMemberToWorkspace(
 
 export async function removeMemberFromWorkspace(
   workspaceId: string,
-  userId: string
+  targetUserId: string,
+  requesterId?: string
 ): Promise<void> {
-  if (!isValidId(workspaceId) || !isValidId(userId)) {
+  if (!isValidId(workspaceId) || !isValidId(targetUserId)) {
     throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Member not found in workspace');
+  }
+
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (workspace && workspace.ownerId === targetUserId) {
+    throw new HttpError(403, 'FORBIDDEN', 'Cannot remove workspace owner');
   }
 
   try {
@@ -128,39 +138,85 @@ export async function removeMemberFromWorkspace(
       await prisma.projectMember.deleteMany({
         where: {
           projectId: { in: projectIds },
-          userId,
+          userId: targetUserId,
         },
       });
     }
 
     await prisma.workspaceMember.delete({
       where: {
-        workspaceId_userId: { workspaceId, userId },
+        workspaceId_userId: { workspaceId, userId: targetUserId },
       },
     });
-  } catch (err) {
+
+    if (requesterId) {
+      const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+      await activityService.createActivity(
+        workspaceId,
+        requesterId,
+        'removed_member',
+        `removed member ${targetUser?.name || targetUser?.email || 'user'} from workspace`
+      );
+    }
+  } catch (err: any) {
+    if (err instanceof HttpError) throw err;
     throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Member not found in workspace');
   }
 }
 
 export async function updateMemberRole(
   workspaceId: string,
-  userId: string,
-  role: 'owner' | 'admin' | 'member'
+  targetUserId: string,
+  newRole: 'owner' | 'admin' | 'member',
+  requesterId?: string
 ): Promise<WorkspaceMemberData> {
-  if (!isValidId(workspaceId) || !isValidId(userId)) {
+  if (!isValidId(workspaceId) || !isValidId(targetUserId)) {
     throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Member not found in workspace');
+  }
+
+  if (requesterId && requesterId === targetUserId) {
+    throw new HttpError(403, 'FORBIDDEN', 'Members cannot modify their own roles');
+  }
+
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) {
+    throw new HttpError(404, 'WORKSPACE_NOT_FOUND', 'Workspace not found');
+  }
+
+  if (workspace.ownerId === targetUserId && newRole !== 'owner') {
+    throw new HttpError(403, 'FORBIDDEN', 'Cannot downgrade the workspace owner');
+  }
+
+  if (requesterId && requesterId !== workspace.ownerId) {
+    const targetMember = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+    });
+    if (targetMember && targetMember.role === 'owner') {
+      throw new HttpError(403, 'FORBIDDEN', 'Only workspace owner can modify an owner');
+    }
   }
 
   try {
     const member = await prisma.workspaceMember.update({
       where: {
-        workspaceId_userId: { workspaceId, userId },
+        workspaceId_userId: { workspaceId, userId: targetUserId },
       },
-      data: { role },
+      data: { role: newRole },
     });
+
+    if (requesterId) {
+      const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+      await activityService.createActivity(
+        workspaceId,
+        requesterId,
+        'updated_role',
+        `changed role of ${targetUser?.name || targetUser?.email || 'user'} to ${newRole}`
+      );
+    }
+
     return member as WorkspaceMemberData;
-  } catch (err) {
+  } catch (err: any) {
+    if (err instanceof HttpError) throw err;
     throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Member not found in workspace');
   }
 }

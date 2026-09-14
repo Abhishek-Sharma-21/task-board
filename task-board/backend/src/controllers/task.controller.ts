@@ -30,20 +30,28 @@ export async function createTask(req: Request, res: Response, next: NextFunction
         const assigneeMembership = await prisma.projectMember.findUnique({
           where: { projectId_userId: { projectId: board.projectId, userId: parsedBody.assigneeId } },
         });
-        const isWsAdmin = await prisma.workspaceMember.findFirst({
+        const wsMember = await prisma.workspaceMember.findFirst({
           where: {
             userId: parsedBody.assigneeId,
             workspace: { projects: { some: { id: board.projectId } } },
-            role: { in: ['owner', 'admin'] },
           },
         });
-        if (!assigneeMembership && !isWsAdmin) {
+        if (!assigneeMembership && !wsMember) {
           res.status(400).json({
             success: false,
-            message: 'Assignee must be a member of this project',
+            message: 'Assignee must be a member of this project or workspace',
             errorCode: 'INVALID_ASSIGNEE',
           });
           return;
+        }
+        if (!assigneeMembership && wsMember) {
+          await prisma.projectMember.create({
+            data: {
+              projectId: board.projectId,
+              userId: parsedBody.assigneeId,
+              role: 'member',
+            },
+          }).catch(() => {});
         }
       }
     }
@@ -167,20 +175,28 @@ export async function updateTask(req: Request, res: Response, next: NextFunction
       const assigneeMembership = await prisma.projectMember.findUnique({
         where: { projectId_userId: { projectId: originalTask.projectId, userId: parsedBody.assigneeId } },
       });
-      const isWsAdmin = await prisma.workspaceMember.findFirst({
+      const wsMember = await prisma.workspaceMember.findFirst({
         where: {
           userId: parsedBody.assigneeId,
           workspace: { projects: { some: { id: originalTask.projectId } } },
-          role: { in: ['owner', 'admin'] },
         },
       });
-      if (!assigneeMembership && !isWsAdmin) {
+      if (!assigneeMembership && !wsMember) {
         res.status(400).json({
           success: false,
-          message: 'Assignee must be a member of this project',
+          message: 'Assignee must be a member of this project or workspace',
           errorCode: 'INVALID_ASSIGNEE',
         });
         return;
+      }
+      if (!assigneeMembership && wsMember) {
+        await prisma.projectMember.create({
+          data: {
+            projectId: originalTask.projectId,
+            userId: parsedBody.assigneeId,
+            role: 'member',
+          },
+        }).catch(() => {});
       }
     }
 
@@ -385,6 +401,25 @@ export async function archiveTask(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function duplicateTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthenticated', errorCode: 'UNAUTHENTICATED' });
+      return;
+    }
+    const duplicated = await taskService.duplicateTask(taskId, userId);
+    broadcast(`board:${duplicated.boardId}`, 'task:created', duplicated);
+    res.status(201).json({
+      success: true,
+      data: duplicated,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function addChecklistItem(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const taskId = requireParam(req, 'taskId');
@@ -431,6 +466,50 @@ export async function deleteChecklistItem(req: Request, res: Response, next: Nex
       }
     }
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getCompletedTasksHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const workspaceId = requireParam(req, 'workspaceId');
+    const { search, fromDate, toDate } = req.query;
+    const tasks = await taskService.getCompletedTasksHistory(workspaceId, {
+      search: typeof search === 'string' ? search : undefined,
+      fromDate: typeof fromDate === 'string' ? fromDate : undefined,
+      toDate: typeof toDate === 'string' ? toDate : undefined,
+    });
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restoreTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = requireParam(req, 'id');
+    const restored = await taskService.restoreTask(taskId);
+    broadcast(`board:${restored.boardId}`, 'task:updated', restored);
+    res.status(200).json({ success: true, data: restored });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function pruneCompletedTasks(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const workspaceId = requireParam(req, 'workspaceId');
+    const { days, beforeDate } = req.body;
+    const prunedCount = await taskService.pruneCompletedTasks(workspaceId, {
+      days: typeof days === 'number' ? days : undefined,
+      beforeDate: typeof beforeDate === 'string' ? beforeDate : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      data: { prunedCount },
+      message: `Successfully pruned ${prunedCount} completed task(s)`,
+    });
   } catch (err) {
     next(err);
   }

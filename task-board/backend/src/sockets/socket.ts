@@ -11,6 +11,9 @@ const boardPresence = new Map<string, Map<string, { socketId: string; name: stri
 export function setupSocketHandlers(io: Server) {
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.userId;
+    if (userId) {
+      socket.join(`user:${userId}`);
+    }
     console.log(`[socket] User connected: ${userId} (socket ID: ${socket.id})`);
 
     // Handle joining a board room
@@ -29,7 +32,15 @@ export function setupSocketHandlers(io: Server) {
       const projectMember = await prisma.projectMember.findUnique({
         where: { projectId_userId: { projectId: board.projectId, userId } },
       });
-      if (!projectMember && wsMember.role !== 'owner' && wsMember.role !== 'admin') return;
+      if (!projectMember) {
+        await prisma.projectMember.create({
+          data: {
+            projectId: board.projectId,
+            userId,
+            role: 'member',
+          },
+        }).catch(() => {});
+      }
 
       socket.join(`board:${boardId}`);
       console.log(`[socket] User ${userId} (${name}) joined room board:${boardId}`);

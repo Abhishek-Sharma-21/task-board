@@ -58,6 +58,61 @@ export async function getCommentsForTask(taskId: string): Promise<CommentData[]>
   return comments.map(formatComment);
 }
 
+export async function updateComment(
+  commentId: string,
+  userId: string,
+  body: string
+): Promise<CommentData> {
+  if (!isValidId(commentId) || !isValidId(userId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid comment or user ID');
+  }
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+  });
+
+  if (!comment) {
+    throw new HttpError(404, 'COMMENT_NOT_FOUND', 'Comment not found');
+  }
+
+  if (comment.userId !== userId) {
+    throw new HttpError(403, 'FORBIDDEN', 'Only comment author can edit comments');
+  }
+
+  const updated = await prisma.comment.update({
+    where: { id: commentId },
+    data: { body },
+    include: { user: true },
+  });
+
+  return formatComment(updated);
+}
+
+export async function deleteComment(
+  commentId: string,
+  userId: string
+): Promise<void> {
+  if (!isValidId(commentId) || !isValidId(userId)) {
+    throw new HttpError(400, 'INVALID_INPUT', 'Invalid comment or user ID');
+  }
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+  });
+
+  if (!comment) {
+    throw new HttpError(404, 'COMMENT_NOT_FOUND', 'Comment not found');
+  }
+
+  if (comment.userId !== userId) {
+    throw new HttpError(403, 'FORBIDDEN', 'Only comment author can delete comments');
+  }
+
+  await prisma.comment.delete({
+    where: { id: commentId },
+  });
+}
+
 function formatComment(c: any): CommentData {
   return {
     id: c.id,

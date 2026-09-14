@@ -19,6 +19,7 @@ import { getSocket, connectSocket } from '../../sockets/socket';
 import { BoardColumn } from './BoardColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDrawer } from './TaskDrawer';
+import { TaskWorkspaceModal } from './TaskWorkspaceModal';
 import type { Task, Comment } from '../../schemas';
 
 export const BoardPage: React.FC = () => {
@@ -50,6 +51,7 @@ export const BoardPage: React.FC = () => {
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const selectedTaskIdRef = React.useRef<string | null>(selectedTaskId);
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export const BoardPage: React.FC = () => {
   const [selectedPriority, setSelectedPriority] = useState('All');
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('All');
   const [selectedTag, setSelectedTag] = useState('All');
+  const [selectedProject, setSelectedProject] = useState('All');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   // Reset filters when boardId changes
@@ -73,13 +76,19 @@ export const BoardPage: React.FC = () => {
     setSelectedPriority('All');
     setSelectedAssigneeId('All');
     setSelectedTag('All');
+    setSelectedProject('All');
     setIsFilterDropdownOpen(false);
   }, [boardId]);
 
-  // Extract unique tags from all current board tasks
+  // Extract unique tags and projects from all current board tasks
   const uniqueTags = React.useMemo(() => {
     const allTasks = Object.values(tasksByColumn).flat();
     return Array.from(new Set(allTasks.flatMap((t) => t.labels || [])));
+  }, [tasksByColumn]);
+
+  const uniqueProjects = React.useMemo(() => {
+    const allTasks = Object.values(tasksByColumn).flat();
+    return Array.from(new Set(allTasks.map((t) => t.projectName).filter(Boolean))) as string[];
   }, [tasksByColumn]);
 
   const hasActiveFilters =
@@ -87,7 +96,8 @@ export const BoardPage: React.FC = () => {
     selectedColumnId !== 'All' ||
     selectedPriority !== 'All' ||
     selectedAssigneeId !== 'All' ||
-    selectedTag !== 'All';
+    selectedTag !== 'All' ||
+    selectedProject !== 'All';
 
   const filteredTasksByColumn = React.useMemo(() => {
     const result: Record<string, Task[]> = {};
@@ -127,12 +137,17 @@ export const BoardPage: React.FC = () => {
           return false;
         }
 
+        // 5. Project Match
+        if (selectedProject !== 'All' && task.projectName?.toLowerCase() !== selectedProject.toLowerCase()) {
+          return false;
+        }
+
         return true;
       });
     });
 
     return result;
-  }, [tasksByColumn, searchQuery, selectedColumnId, selectedPriority, selectedAssigneeId, selectedTag]);
+  }, [tasksByColumn, searchQuery, selectedColumnId, selectedPriority, selectedAssigneeId, selectedTag, selectedProject]);
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -140,6 +155,7 @@ export const BoardPage: React.FC = () => {
     setSelectedPriority('All');
     setSelectedAssigneeId('All');
     setSelectedTag('All');
+    setSelectedProject('All');
   };
 
   const totalTasksCount = React.useMemo(() => {
@@ -154,7 +170,7 @@ export const BoardPage: React.FC = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -173,63 +189,72 @@ export const BoardPage: React.FC = () => {
     if (!boardId || !currentUser) return;
 
     // Connect socket
-    connectSocket();
-    const socket = getSocket();
+    const socket = connectSocket() || getSocket();
 
-    // Join board room
-    socket.emit('joinBoard', { boardId, name: currentUser.name });
+    const joinRoom = () => {
+      socket?.emit?.('joinBoard', { boardId, name: currentUser.name });
+    };
+
+    if (socket?.connected) {
+      joinRoom();
+    }
+    socket?.on?.('connect', joinRoom);
 
     // Handle incoming socket events
-    socket.on('task:created', (task: Task) => {
-      // The creator already applied this task via the API response in createTask().
-      // Only other clients should insert it via the socket event.
+    const handleTaskCreated = (task: Task) => {
       if (task.createdBy === currentUser?.id) return;
       addOrUpdateTaskRealtime(task);
-    });
+    };
 
-    socket.on('task:updated', (task: Task) => {
+    const handleTaskUpdated = (task: Task) => {
       addOrUpdateTaskRealtime(task);
-    });
+    };
 
-    socket.on('task:moved', (task: Task) => {
+    const handleTaskMoved = (task: Task) => {
       addOrUpdateTaskRealtime(task);
-    });
+    };
 
-    socket.on('task:deleted', (data: { id: string }) => {
+    const handleTaskDeleted = (data: { id: string }) => {
       deleteTaskRealtime(data.id);
       if (selectedTaskIdRef.current === data.id) {
         setSelectedTaskId(null);
       }
-    });
+    };
 
-    socket.on('board:presence', (users: Array<{ id: string; name: string }>) => {
+    const handlePresence = (users: Array<{ id: string; name: string }>) => {
       setActiveUsers(users);
-    });
+    };
 
-    socket.on('board:updated', () => {
+    const handleBoardUpdated = () => {
       fetchColumnsAndTasks(boardId);
-    });
+    };
 
-    socket.on('comment:created', (comment: Comment) => {
+    const handleCommentCreated = (comment: Comment) => {
       addCommentRealtime(comment.taskId, comment);
-    });
+    };
+
+    socket?.on?.('task:created', handleTaskCreated);
+    socket?.on?.('task:updated', handleTaskUpdated);
+    socket?.on?.('task:moved', handleTaskMoved);
+    socket?.on?.('task:deleted', handleTaskDeleted);
+    socket?.on?.('board:presence', handlePresence);
+    socket?.on?.('board:updated', handleBoardUpdated);
+    socket?.on?.('comment:created', handleCommentCreated);
 
     // Cleanup on unmount/re-effect
     return () => {
-      socket.emit('leaveBoard', { boardId });
-      socket.off('task:created');
-      socket.off('task:updated');
-      socket.off('task:moved');
-      socket.off('task:deleted');
-      socket.off('comment:created');
-      socket.off('board:presence');
-      socket.off('board:updated');
+      socket?.emit?.('leaveBoard', { boardId });
+      socket?.off?.('connect', joinRoom);
+      socket?.off?.('task:created', handleTaskCreated);
+      socket?.off?.('task:updated', handleTaskUpdated);
+      socket?.off?.('task:moved', handleTaskMoved);
+      socket?.off?.('task:deleted', handleTaskDeleted);
+      socket?.off?.('board:presence', handlePresence);
+      socket?.off?.('board:updated', handleBoardUpdated);
+      socket?.off?.('comment:created', handleCommentCreated);
       setActiveUsers([]);
     };
-  // NOTE: selectedTaskId intentionally excluded — it is UI state unrelated to the
-  // socket connection. Including it caused listener re-registration on every drawer
-  // open/close, which is the secondary cause of the temporary duplicate.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, currentUser]);
 
   const findColumnOfTask = (taskId: string): string | null => {
@@ -564,6 +589,28 @@ export const BoardPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
+
+                {/* Project filter */}
+                {uniqueProjects.length > 0 && (
+                  <div className="space-y-1">
+                    <label htmlFor="filter-project" className="block text-[9px] uppercase font-mono tracking-wider text-text-muted">
+                      Project
+                    </label>
+                    <select
+                      id="filter-project"
+                      value={selectedProject}
+                      onChange={(e) => setSelectedProject(e.target.value)}
+                      className="w-full bg-input border border-border-input text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+                    >
+                      <option value="All">All Projects</option>
+                      {uniqueProjects.map((pName) => (
+                        <option key={pName} value={pName}>
+                          📁 {pName.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -675,9 +722,23 @@ export const BoardPage: React.FC = () => {
       )}
 
       {/* Side Details Drawer */}
-      <TaskDrawer
+      {!isWorkspaceModalOpen && (
+        <TaskDrawer
+          task={activeDrawerTask}
+          onClose={() => setSelectedTaskId(null)}
+          onExpandWorkspace={() => setIsWorkspaceModalOpen(true)}
+        />
+      )}
+
+      {/* Centered Split-View Workspace Modal */}
+      <TaskWorkspaceModal
         task={activeDrawerTask}
-        onClose={() => setSelectedTaskId(null)}
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => {
+          setIsWorkspaceModalOpen(false);
+          setSelectedTaskId(null);
+        }}
+        onMinimizeToDrawer={() => setIsWorkspaceModalOpen(false)}
       />
     </div>
   );
