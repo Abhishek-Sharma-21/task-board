@@ -199,6 +199,22 @@ function MainApp() {
     }
   };
 
+  const deleteWorkspace = async (workspaceId: string): Promise<void> => {
+    await api.delete(`/workspaces/${workspaceId}`);
+    const remaining = workspaces.filter((w) => w.id !== workspaceId);
+    setWorkspaces(remaining);
+    if (activeWorkspace?.id === workspaceId) {
+      if (remaining.length > 0) {
+        await selectAndActivateWorkspace(remaining[0]);
+      } else {
+        setActiveWorkspace(null);
+        setProjects([]);
+        setWorkspaceMembers([]);
+        await storage.removeLastWorkspaceId();
+      }
+    }
+  };
+
   const fetchBoardData = async (project: Project, targetBoardId?: string) => {
     try {
       let boardsRes = await api.get(`/projects/${project.id}/boards`);
@@ -426,6 +442,7 @@ function MainApp() {
           <WorkspacesScreen
             workspaces={workspaces}
             activeWorkspace={activeWorkspace}
+            user={user}
             onSelectWorkspace={async (ws) => {
               await selectAndActivateWorkspace(ws);
               navigateTo('projects');
@@ -435,6 +452,7 @@ function MainApp() {
               await selectAndActivateWorkspace(newWs);
               navigateTo('projects');
             }}
+            onDeleteWorkspace={deleteWorkspace}
             onInviteMembers={() => navigateTo('members')}
             onBack={goBack}
           />
@@ -547,6 +565,8 @@ function MainApp() {
           <SettingsScreen
             user={user}
             workspaceId={activeWorkspace?.id}
+            activeWorkspace={activeWorkspace}
+            onDeleteWorkspace={deleteWorkspace}
             onNavigateWorkspaces={() => navigateTo('workspaces')}
             onNavigateMembers={() => navigateTo('members')}
             onNavigateNotifications={() => navigateTo('notifications')}
@@ -559,6 +579,8 @@ function MainApp() {
           <SettingsScreen
             user={user}
             workspaceId={activeWorkspace?.id}
+            activeWorkspace={activeWorkspace}
+            onDeleteWorkspace={deleteWorkspace}
             onNavigateWorkspaces={() => navigateTo('workspaces')}
             onNavigateMembers={() => navigateTo('members')}
             onNavigateNotifications={() => navigateTo('notifications')}

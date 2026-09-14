@@ -85,4 +85,12 @@ export const storage = {
       console.warn('Storage setLastWorkspaceId error:', e);
     }
   },
+
+  async removeLastWorkspaceId(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(LAST_WORKSPACE_KEY);
+    } catch (e) {
+      console.warn('Storage removeLastWorkspaceId error:', e);
+    }
+  },
 };

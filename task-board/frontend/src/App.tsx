@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppRouter } from './routes/AppRouter';
 import { useAuthStore } from './features/auth/authStore';
 import { InitialLoadingScreen } from './components/InitialLoadingScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App(): JSX.Element {
   const isInitialized = useAuthStore((state) => state.isInitialized);
@@ -15,7 +16,11 @@ function App(): JSX.Element {
     return <InitialLoadingScreen />;
   }
 
-  return <AppRouter />;
+  return (
+    <ErrorBoundary>
+      <AppRouter />
+    </ErrorBoundary>
+  );
 }
 
 export default App;

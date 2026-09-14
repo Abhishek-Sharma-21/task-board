@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
+import rateLimit from 'express-rate-limit';
 import authRouter from './routes/auth.routes.js';
 import workspaceRouter from './routes/workspace.routes.js';
 import projectRouter from './routes/project.routes.js';
@@ -42,10 +43,10 @@ export function createApp(): express.Express {
         if (!origin) return callback(null, true);
         // Allow all origins in development mode
         if (env.nodeEnv === 'development') return callback(null, true);
-        if (allowedOrigins.some((allowed) => origin.startsWith(allowed))) {
+        if (allowedOrigins.some((allowed) => origin === allowed)) {
           return callback(null, true);
         }
-        return callback(null, true);
+        return callback(new Error('CORS: Origin not allowed'));
       },
       credentials: true,
     }),
@@ -57,7 +58,29 @@ export function createApp(): express.Express {
     res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } });
   });
 
-  app.use('/api/auth', authRouter);
+  // Environment-aware rate limiting (bypassed in dev & test for frictionless local workflow)
+  const isDevOrTest = env.nodeEnv === 'development' || env.nodeEnv === 'test';
+
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    skip: () => isDevOrTest,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many authentication attempts, please try again later.', errorCode: 'TOO_MANY_REQUESTS' },
+  });
+
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    skip: () => isDevOrTest,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests, please slow down.', errorCode: 'TOO_MANY_REQUESTS' },
+  });
+
+  app.use('/api/auth', authLimiter, authRouter);
+  app.use('/api', apiLimiter);
   app.use('/api/workspaces', workspaceRouter);
   app.use('/api', projectRouter);
   app.use('/api', boardRouter);

@@ -29,17 +29,14 @@ export function setupSocketHandlers(io: Server) {
       });
       if (!wsMember) return;
 
+      const isWsAdmin = wsMember.role.toLowerCase() === 'owner' || wsMember.role.toLowerCase() === 'admin';
       const projectMember = await prisma.projectMember.findUnique({
         where: { projectId_userId: { projectId: board.projectId, userId } },
       });
-      if (!projectMember) {
-        await prisma.projectMember.create({
-          data: {
-            projectId: board.projectId,
-            userId,
-            role: 'member',
-          },
-        }).catch(() => {});
+
+      // User must be a project member or workspace owner/admin
+      if (!projectMember && !isWsAdmin) {
+        return;
       }
 
       socket.join(`board:${boardId}`);
@@ -119,15 +116,33 @@ export function setupSocketHandlers(io: Server) {
 }
 
 export function initSocket(httpServer: any): Server {
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'http://localhost:19006',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:8081',
+    ...env.corsOrigin,
+  ];
+
   ioInstance = new Server(httpServer, {
     cors: {
-      origin: env.corsOrigin,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (env.nodeEnv === 'development') return callback(null, true);
+        if (allowedOrigins.some((allowed) => origin === allowed)) {
+          return callback(null, true);
+        }
+        return callback(new Error('CORS: Origin not allowed'));
+      },
       credentials: true,
     },
   });
 
   // Socket middleware for JWT verification
-  ioInstance.use((socket, next) => {
+  ioInstance.use(async (socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.headers.authorization;
     if (!token) {
       return next(new Error('Authentication error: Missing token'));
@@ -135,7 +150,17 @@ export function initSocket(httpServer: any): Server {
     const tokenStr = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim();
     try {
       const payload = verifyAccessToken(tokenStr);
-      socket.data.userId = payload.sub;
+      if (!payload?.sub) {
+        return next(new Error('Authentication error: Invalid payload'));
+      }
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true },
+      });
+      if (!user) {
+        return next(new Error('Authentication error: User no longer exists'));
+      }
+      socket.data.userId = user.id;
       next();
     } catch (err) {
       next(new Error('Authentication error: Invalid token'));

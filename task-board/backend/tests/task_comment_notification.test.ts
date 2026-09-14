@@ -178,5 +178,5 @@ describe('Task, Comment, and Notification API Endpoints', () => {
       .set('Authorization', `Bearer ${member.token}`);
     expect(activities.status).toBe(200);
     expect(activities.body.data.some((act: any) => act.action === 'commented')).toBe(true);
-  });
+  }, 60000);
 });

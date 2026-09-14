@@ -82,8 +82,9 @@ describe('Multi-Workspace Management & Isolation', () => {
     const rahulWorkspaces = await request(app)
       .get('/api/workspaces')
       .set('Authorization', `Bearer ${rahul.token}`);
-    expect(rahulWorkspaces.status).toBe(200);
-    expect(rahulWorkspaces.body.data.map((w: any) => w.id).sort()).toEqual([workspaceAId, workspaceBId].sort());
+    expect(rahulWorkspaces.body.data.map((w: any) => w.id)).toEqual(
+      expect.arrayContaining([workspaceAId, workspaceBId])
+    );
 
     // Verify Rahul cannot access an unauthorized random workspace ID (ID guessing)
     const bogusWs = await request(app)

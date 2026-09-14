@@ -8,17 +8,20 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { Header } from '../components/Header';
-import { Workspace } from '../types';
+import { Workspace, User } from '../types';
 import { api } from '../services/api';
 
 interface WorkspacesScreenProps {
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
+  user?: User | null;
   onSelectWorkspace: (ws: Workspace) => void;
   onWorkspaceCreated?: (ws: Workspace) => void;
+  onDeleteWorkspace?: (workspaceId: string) => Promise<void>;
   onInviteMembers: () => void;
   onBack: () => void;
 }
@@ -26,8 +29,10 @@ interface WorkspacesScreenProps {
 export const WorkspacesScreen: React.FC<WorkspacesScreenProps> = ({
   workspaces,
   activeWorkspace,
+  user,
   onSelectWorkspace,
   onWorkspaceCreated,
+  onDeleteWorkspace,
   onInviteMembers,
   onBack,
 }) => {
@@ -37,6 +42,7 @@ export const WorkspacesScreen: React.FC<WorkspacesScreenProps> = ({
   const [wsName, setWsName] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const displayWsList: Partial<Workspace & { membersCount?: number; bg?: string }>[] =
     workspaces.length > 0
@@ -97,6 +103,31 @@ export const WorkspacesScreen: React.FC<WorkspacesScreenProps> = ({
     }
   };
 
+  const handleDeleteWorkspace = async (ws: Workspace) => {
+    if (!onDeleteWorkspace) return;
+    Alert.alert(
+      'Delete Workspace',
+      `PERMANENT ACTION: Are you sure you want to delete "${ws.name}"? All projects, boards, and tasks will be permanently removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingId(ws.id);
+            try {
+              await onDeleteWorkspace(ws.id);
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to delete workspace');
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
@@ -119,6 +150,7 @@ export const WorkspacesScreen: React.FC<WorkspacesScreenProps> = ({
         <View style={styles.list}>
           {displayWsList.map((ws) => {
             const isActive = activeWorkspace ? activeWorkspace.id === ws.id : ws.id === 'ws-1';
+            const isOwner = user && ws.ownerId === user.id;
             return (
               <TouchableOpacity
                 key={ws.id}
@@ -137,6 +169,19 @@ export const WorkspacesScreen: React.FC<WorkspacesScreenProps> = ({
                     {isActive ? '· Active workspace' : ''}
                   </Text>
                 </View>
+
+                {isOwner && onDeleteWorkspace && (
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => handleDeleteWorkspace(ws as Workspace)}
+                    disabled={deletingId === ws.id}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={[styles.deleteBtnText, { color: colors.redLight }]}>
+                      {deletingId === ws.id ? '...' : '✕'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
                 {isActive ? (
                   <Text style={[styles.activeCheck, { color: colors.redLight }]}>✓</Text>
@@ -281,6 +326,15 @@ const styles = StyleSheet.create({
   activeCheck: {
     fontSize: 16,
     fontWeight: '800',
+  },
+  deleteBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 6,
+  },
+  deleteBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   chevron: {
     fontSize: 18,

@@ -20,8 +20,23 @@ export function getSocket(): Socket {
       reconnectionDelayMax: 5000,
     });
 
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', async (err) => {
       console.warn('[socket] Connection error:', err.message);
+      if (err.message.includes('token') || err.message.includes('Authentication')) {
+        try {
+          const { api } = await import('../api/client');
+          const refreshRes = await api.post('/auth/refresh');
+          const newToken = refreshRes.data.data.accessToken;
+          if (newToken && socket) {
+            localStorage.setItem('accessToken', newToken);
+            socket.auth = { token: `Bearer ${newToken}` };
+            socket.connect();
+            return;
+          }
+        } catch {
+          // Refresh failed or already logged out
+        }
+      }
       const freshToken = localStorage.getItem('accessToken');
       if (freshToken && socket) {
         socket.auth = { token: `Bearer ${freshToken}` };

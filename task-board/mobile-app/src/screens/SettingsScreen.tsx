@@ -12,12 +12,14 @@ import {
 } from 'react-native';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
 import { Avatar } from '../components/Avatar';
-import { User, Task } from '../types';
+import { User, Task, Workspace } from '../types';
 import { api } from '../services/api';
 
 interface SettingsScreenProps {
   user: User | null;
   workspaceId?: string;
+  activeWorkspace?: Workspace | null;
+  onDeleteWorkspace?: (workspaceId: string) => Promise<void>;
   onNavigateWorkspaces: () => void;
   onNavigateMembers: () => void;
   onNavigateNotifications?: () => void;
@@ -28,6 +30,8 @@ interface SettingsScreenProps {
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   user,
   workspaceId,
+  activeWorkspace,
+  onDeleteWorkspace,
   onNavigateWorkspaces,
   onNavigateMembers,
   onNavigateNotifications,
@@ -91,6 +95,31 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setIsEditingProfile(false);
     Alert.alert('Profile Updated', `Name set to "${nameInput.trim() || userName}"`);
   };
+
+  const handleDeleteWorkspace = () => {
+    if (!workspaceId || !activeWorkspace || !onDeleteWorkspace) return;
+    Alert.alert(
+      'Delete Workspace',
+      `PERMANENT ACTION: Are you sure you want to delete "${activeWorkspace.name}"? All projects, boards, and tasks will be permanently removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await onDeleteWorkspace(workspaceId);
+              onNavigateWorkspaces();
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to delete workspace');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const isOwner = user && activeWorkspace && activeWorkspace.ownerId === user.id;
 
   return (
     <ScrollView
@@ -368,6 +397,26 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Danger Zone - Delete Workspace (Owner Only) */}
+      {isOwner && onDeleteWorkspace && workspaceId && (
+        <View style={styles.group}>
+          <Text style={[styles.groupTitle, { color: colors.redLight }]}>DANGER ZONE</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.red }]}>
+            <TouchableOpacity style={styles.row} onPress={handleDeleteWorkspace} activeOpacity={0.7}>
+              <View style={[styles.iconBox, { backgroundColor: colors.redBg }]}>
+                <Text style={[styles.iconText, { color: colors.redLight }]}>⚠</Text>
+              </View>
+              <View style={styles.info}>
+                <Text style={[styles.name, { color: colors.redLight }]}>Delete Workspace</Text>
+                <Text style={[styles.desc, { color: colors.textMuted }]}>
+                  Permanently delete this workspace and all its projects, boards, and tasks
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 };

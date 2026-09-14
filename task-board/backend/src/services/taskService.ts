@@ -281,6 +281,11 @@ export async function createTask(
     throw new HttpError(404, 'BOARD_NOT_FOUND', 'Board not found');
   }
 
+  const column = await prisma.boardColumn.findUnique({ where: { id: payload.columnId } });
+  if (!column || column.boardId !== boardId) {
+    throw new HttpError(400, 'INVALID_COLUMN', 'Column does not belong to this board');
+  }
+
   const lastTask = await prisma.task.findFirst({
     where: { columnId: payload.columnId, boardId },
     orderBy: { position: 'desc' },
@@ -421,6 +426,10 @@ export async function updateTask(
   if (payload.labels !== undefined) updates.labels = { set: payload.labels };
 
   if (payload.columnId !== undefined) {
+    const targetCol = await prisma.boardColumn.findUnique({ where: { id: payload.columnId } });
+    if (!targetCol || targetCol.boardId !== task.boardId) {
+      throw new HttpError(400, 'INVALID_COLUMN', 'Target column does not belong to this board');
+    }
     updates.columnId = payload.columnId;
   } else if (payload.status !== undefined) {
     const cols = await prisma.boardColumn.findMany({ where: { boardId: task.boardId } });
@@ -508,70 +517,77 @@ export async function moveTask(
     throw new HttpError(409, 'VERSION_CONFLICT', 'Task has been moved or updated by another user. Please refresh.');
   }
 
+  const toColumn = await prisma.boardColumn.findUnique({ where: { id: payload.toColumnId } });
+  if (!toColumn || toColumn.boardId !== task.boardId) {
+    throw new HttpError(400, 'INVALID_COLUMN', 'Target column does not belong to this board');
+  }
+
   const fromColumnId = task.columnId;
   const fromPosition = task.position;
   const toColumnId = payload.toColumnId;
   const toPosition = payload.toPosition;
 
-  if (fromColumnId === toColumnId) {
-    if (fromPosition !== toPosition) {
-      if (fromPosition < toPosition) {
-        await prisma.task.updateMany({
-          where: {
-            columnId: task.columnId,
-            position: { gt: fromPosition, lte: toPosition },
-          },
-          data: { position: { decrement: 1 } },
-        });
-      } else {
-        await prisma.task.updateMany({
-          where: {
-            columnId: task.columnId,
-            position: { gte: toPosition, lt: fromPosition },
-          },
-          data: { position: { increment: 1 } },
-        });
+  const updated = await prisma.$transaction(async (tx) => {
+    if (fromColumnId === toColumnId) {
+      if (fromPosition !== toPosition) {
+        if (fromPosition < toPosition) {
+          await tx.task.updateMany({
+            where: {
+              columnId: task.columnId,
+              position: { gt: fromPosition, lte: toPosition },
+            },
+            data: { position: { decrement: 1 } },
+          });
+        } else {
+          await tx.task.updateMany({
+            where: {
+              columnId: task.columnId,
+              position: { gte: toPosition, lt: fromPosition },
+            },
+            data: { position: { increment: 1 } },
+          });
+        }
       }
+    } else {
+      await tx.task.updateMany({
+        where: {
+          columnId: task.columnId,
+          position: { gt: fromPosition },
+        },
+        data: { position: { decrement: 1 } },
+      });
+
+      await tx.task.updateMany({
+        where: {
+          columnId: toColumnId,
+          position: { gte: toPosition },
+        },
+        data: { position: { increment: 1 } },
+      });
     }
-  } else {
-    await prisma.task.updateMany({
-      where: {
-        columnId: task.columnId,
-        position: { gt: fromPosition },
-      },
-      data: { position: { decrement: 1 } },
-    });
 
-    await prisma.task.updateMany({
-      where: {
+    return tx.task.update({
+      where: { id: taskId },
+      data: {
         columnId: toColumnId,
-        position: { gte: toPosition },
+        position: toPosition,
+        version: task.version + 1,
       },
-      data: { position: { increment: 1 } },
-    });
-  }
-
-  const updated = await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      columnId: toColumnId,
-      position: toPosition,
-      version: task.version + 1,
-    },
-    include: {
-      column: {
-        select: {
-          name: true,
-          board: {
-            select: {
-              name: true,
-              project: { select: { name: true } },
+      include: {
+        column: {
+          select: {
+            name: true,
+            board: {
+              select: {
+                name: true,
+                project: { select: { name: true } },
+              },
             },
           },
         },
+        checklists: { orderBy: { position: 'asc' } },
       },
-      checklists: { orderBy: { position: 'asc' } },
-    },
+    });
   });
 
   const assigneeUser = await resolveAssignee(updated.assigneeId);

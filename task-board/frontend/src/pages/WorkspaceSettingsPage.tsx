@@ -343,6 +343,19 @@ export const WorkspaceSettingsPage: React.FC = () => {
     );
   }
 
+  if (userRole === 'member') {
+    return (
+      <div className="border-2 border-danger/40 bg-danger/5 p-8 text-center rounded-sm space-y-3">
+        <h2 className="text-xl font-black uppercase text-danger tracking-tight">
+          403 Unauthorized Access
+        </h2>
+        <p className="text-sm text-text-muted font-medium max-w-md mx-auto">
+          Workspace Settings are restricted to Workspace Owners and Admins only. Please contact your workspace administrator to request access.
+        </p>
+      </div>
+    );
+  }
+
   const currentHeadMember = projectMembers.find((m) => m.role === 'head');
   const availableWorkspaceUsersForProject = members.filter(
     (wm) => !projectMembers.some((pm) => pm.id === wm.id)

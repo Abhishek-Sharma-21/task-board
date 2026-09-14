@@ -15,7 +15,7 @@ function isValidId(id: string): boolean {
   return UUID_REGEX.test(id);
 }
 
-export function authenticate(req: Request, _res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return next(new HttpError(401, 'UNAUTHENTICATED', 'Missing or malformed Authorization header'));
@@ -26,9 +26,20 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
   }
   try {
     const payload = verifyAccessToken(token);
-    req.userId = payload.sub;
+    if (!payload?.sub || !isValidId(payload.sub)) {
+      return next(new HttpError(401, 'UNAUTHENTICATED', 'Invalid access token payload'));
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true },
+    });
+    if (!user) {
+      return next(new HttpError(401, 'UNAUTHENTICATED', 'User account no longer exists or session expired'));
+    }
+    req.userId = user.id;
     return next();
-  } catch {
+  } catch (err: any) {
+    if (err instanceof HttpError) return next(err);
     return next(new HttpError(401, 'UNAUTHENTICATED', 'Invalid or expired access token'));
   }
 }
@@ -65,6 +76,17 @@ export function requireWorkspaceRole(minRole: RoleName, workspaceIdParamName: st
       clearTimeout(timeoutId!);
 
       if (!member) {
+        if (minRole === 'owner') {
+          const wsPromise = prisma.workspace.findUnique({ where: { id: workspaceId }, select: { ownerId: true } });
+          const wsTimeout = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('Database query timeout')), 10000);
+          });
+          const ws = await Promise.race([wsPromise, wsTimeout]);
+          clearTimeout(timeoutId!);
+          if (ws && ws.ownerId === userId) {
+            return next();
+          }
+        }
         return next(new HttpError(403, 'FORBIDDEN', 'You are not a member of this workspace'));
       }
 
@@ -123,6 +145,13 @@ export function requireProjectRole(minRole: RoleName, projectIdParamName: string
       });
       if (!projectMember) {
         return next(new HttpError(403, 'FORBIDDEN', 'You are not a member of this project'));
+      }
+
+      if (minRole === 'owner') {
+        if (wsMember && wsMember.role.toLowerCase() === 'owner') {
+          return next();
+        }
+        return next(new HttpError(403, 'FORBIDDEN', 'Only workspace owner can perform this action'));
       }
 
       if (minRole === 'admin') {
@@ -305,6 +334,60 @@ export function requireTaskAssignmentRole(taskIdParamName: string = 'id') {
       if (err.message?.includes('Database query timeout')) {
         return next(new HttpError(504, 'GATEWAY_TIMEOUT', 'Database query timed out. Please try again.'));
       }
+      return next(err);
+    }
+  };
+}
+
+export function requireChecklistItemRole(minRole: RoleName, itemIdParamName: string = 'itemId') {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.userId;
+      if (!userId || !isValidId(userId)) {
+        return next(new HttpError(401, 'UNAUTHENTICATED', 'Unauthenticated'));
+      }
+      const itemId = req.params[itemIdParamName];
+      if (!itemId || !isValidId(itemId)) {
+        return next(new HttpError(400, 'BAD_REQUEST', `Missing or invalid parameter ${itemIdParamName}`));
+      }
+
+      const item = await prisma.checklistItem.findUnique({
+        where: { id: itemId },
+        include: { task: { select: { projectId: true } } },
+      });
+
+      if (!item || !item.task) {
+        return next(new HttpError(404, 'NOT_FOUND', 'Checklist item not found'));
+      }
+
+      const project = await prisma.project.findUnique({ where: { id: item.task.projectId } });
+      if (!project) {
+        return next(new HttpError(404, 'NOT_FOUND', 'Project not found'));
+      }
+
+      const wsMember = await prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
+      });
+
+      if (wsMember && (wsMember.role.toLowerCase() === 'owner' || wsMember.role.toLowerCase() === 'admin')) {
+        return next();
+      }
+
+      const projectMember = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: item.task.projectId, userId } },
+      });
+      if (!projectMember) {
+        return next(new HttpError(403, 'FORBIDDEN', 'You are not a member of this project'));
+      }
+
+      if (minRole === 'admin') {
+        if (projectMember.role !== 'head') {
+          return next(new HttpError(403, 'FORBIDDEN', 'Insufficient project permissions'));
+        }
+      }
+
+      return next();
+    } catch (err: any) {
       return next(err);
     }
   };

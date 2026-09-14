@@ -24,7 +24,7 @@ export function requireCsrf(req: Request, _res: Response, next: NextFunction): v
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
     return next();
   }
-  const expected = (req as Request & { csrfToken?: string }).csrfToken;
+  const expected = (req as Request & { csrfToken?: string }).csrfToken ?? getCsrfCookie(req);
   const headerToken = req.headers['x-csrf-token'];
   if (!expected || typeof headerToken !== 'string' || headerToken !== expected) {
     return next(new HttpError(403, 'CSRF_INVALID', 'CSRF token missing or mismatched'));
@@ -33,16 +33,11 @@ export function requireCsrf(req: Request, _res: Response, next: NextFunction): v
 }
 
 /**
- * Convenience: combine ensure + strict. Use for logout etc.
+ * Convenience: combine ensure + strict. Use for state-changing routes.
  */
-// export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
-//   ensureCsrfCookie(req, res, (err) => {
-//     if (err) return next(err);
-//     requireCsrf(req, res, next);
-//   });
-// }
-
-export function csrfProtection(_req: Request, _res: Response, next: NextFunction): void {
-  // CSRF temporarily disabled
-  return next();
+export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
+  ensureCsrfCookie(req, res, (err) => {
+    if (err) return next(err);
+    requireCsrf(req, res, next);
+  });
 }

@@ -30,19 +30,23 @@ export async function createWorkspace(
   ownerId: string,
   name: string
 ): Promise<WorkspaceData> {
-  const workspace = await prisma.workspace.create({
-    data: {
-      name,
-      ownerId,
-    },
-  });
+  const workspace = await prisma.$transaction(async (tx) => {
+    const ws = await tx.workspace.create({
+      data: {
+        name,
+        ownerId,
+      },
+    });
 
-  await prisma.workspaceMember.create({
-    data: {
-      workspaceId: workspace.id,
-      userId: ownerId,
-      role: 'owner',
-    },
+    await tx.workspaceMember.create({
+      data: {
+        workspaceId: ws.id,
+        userId: ownerId,
+        role: 'owner',
+      },
+    });
+
+    return ws;
   });
 
   return workspace;
@@ -257,7 +261,47 @@ export async function deleteWorkspace(
     throw new HttpError(403, 'FORBIDDEN', 'Only workspace owner can delete workspace');
   }
 
-  await prisma.workspace.delete({ where: { id: workspaceId } });
+  await prisma.$transaction(async (tx) => {
+    const projects = await tx.project.findMany({
+      where: { workspaceId },
+      select: { id: true },
+    });
+    const projectIds = projects.map((p) => p.id);
+
+    if (projectIds.length > 0) {
+      const boards = await tx.board.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { id: true },
+      });
+      const boardIds = boards.map((b) => b.id);
+
+      if (boardIds.length > 0) {
+        const columns = await tx.boardColumn.findMany({
+          where: { boardId: { in: boardIds } },
+          select: { id: true },
+        });
+        const columnIds = columns.map((c) => c.id);
+
+        if (columnIds.length > 0) {
+          await tx.checklistItem.deleteMany({ where: { task: { columnId: { in: columnIds } } } });
+          await tx.taskChatMessage.deleteMany({ where: { task: { columnId: { in: columnIds } } } });
+          await tx.comment.deleteMany({ where: { task: { columnId: { in: columnIds } } } });
+          await tx.task.deleteMany({ where: { columnId: { in: columnIds } } });
+        }
+
+        await tx.boardColumn.deleteMany({ where: { boardId: { in: boardIds } } });
+      }
+
+      await tx.projectMember.deleteMany({ where: { projectId: { in: projectIds } } });
+      await tx.board.deleteMany({ where: { projectId: { in: projectIds } } });
+    }
+
+    await tx.project.deleteMany({ where: { workspaceId } });
+    await tx.workspaceMember.deleteMany({ where: { workspaceId } });
+    await tx.activity.deleteMany({ where: { workspaceId } });
+    await tx.notification.deleteMany({ where: { user: { workspaceMemberships: { some: { workspaceId } } } } });
+    await tx.workspace.delete({ where: { id: workspaceId } });
+  });
 }
 
 export async function leaveWorkspace(

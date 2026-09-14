@@ -87,10 +87,10 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
     }
     const user = await authService.getPublicUser(req.userId);
     if (!user) {
-      res.status(404).json({
+      res.status(401).json({
         success: false,
-        message: 'User not found',
-        errorCode: 'NOT_FOUND',
+        message: 'User not found or session expired',
+        errorCode: 'UNAUTHENTICATED',
       });
       return;
     }

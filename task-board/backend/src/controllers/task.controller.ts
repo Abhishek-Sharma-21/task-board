@@ -27,31 +27,36 @@ export async function createTask(req: Request, res: Response, next: NextFunction
     if (parsedBody.assigneeId) {
       const board = await prisma.board.findUnique({ where: { id: boardId } });
       if (board) {
+        const project = await prisma.project.findUnique({ where: { id: board.projectId } });
+        if (project && parsedBody.assigneeId !== userId) {
+          const wsMember = await prisma.workspaceMember.findUnique({
+            where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
+          });
+          const isWsAdmin = wsMember && (wsMember.role === 'owner' || wsMember.role === 'admin');
+          const callerProjectMember = await prisma.projectMember.findUnique({
+            where: { projectId_userId: { projectId: board.projectId, userId } },
+          });
+          const isHead = callerProjectMember && callerProjectMember.role === 'head';
+          if (!isWsAdmin && !isHead) {
+            res.status(403).json({
+              success: false,
+              message: 'Only workspace admin or project head can assign tasks',
+              errorCode: 'FORBIDDEN',
+            });
+            return;
+          }
+        }
+
         const assigneeMembership = await prisma.projectMember.findUnique({
           where: { projectId_userId: { projectId: board.projectId, userId: parsedBody.assigneeId } },
         });
-        const wsMember = await prisma.workspaceMember.findFirst({
-          where: {
-            userId: parsedBody.assigneeId,
-            workspace: { projects: { some: { id: board.projectId } } },
-          },
-        });
-        if (!assigneeMembership && !wsMember) {
+        if (!assigneeMembership) {
           res.status(400).json({
             success: false,
-            message: 'Assignee must be a member of this project or workspace',
+            message: 'Assignee must be a member of this project',
             errorCode: 'INVALID_ASSIGNEE',
           });
           return;
-        }
-        if (!assigneeMembership && wsMember) {
-          await prisma.projectMember.create({
-            data: {
-              projectId: board.projectId,
-              userId: parsedBody.assigneeId,
-              role: 'member',
-            },
-          }).catch(() => {});
         }
       }
     }
@@ -175,28 +180,13 @@ export async function updateTask(req: Request, res: Response, next: NextFunction
       const assigneeMembership = await prisma.projectMember.findUnique({
         where: { projectId_userId: { projectId: originalTask.projectId, userId: parsedBody.assigneeId } },
       });
-      const wsMember = await prisma.workspaceMember.findFirst({
-        where: {
-          userId: parsedBody.assigneeId,
-          workspace: { projects: { some: { id: originalTask.projectId } } },
-        },
-      });
-      if (!assigneeMembership && !wsMember) {
+      if (!assigneeMembership) {
         res.status(400).json({
           success: false,
-          message: 'Assignee must be a member of this project or workspace',
+          message: 'Assignee must be a member of this project',
           errorCode: 'INVALID_ASSIGNEE',
         });
         return;
-      }
-      if (!assigneeMembership && wsMember) {
-        await prisma.projectMember.create({
-          data: {
-            projectId: originalTask.projectId,
-            userId: parsedBody.assigneeId,
-            role: 'member',
-          },
-        }).catch(() => {});
       }
     }
 

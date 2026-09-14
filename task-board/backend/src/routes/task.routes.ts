@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { CreateTaskInput, UpdateTaskInput, MoveTaskInput } from '../schemas.js';
 import * as controller from '../controllers/task.controller.js';
-import { authenticate, requireBoardRole, requireTaskRole } from '../middleware/auth.js';
+import { authenticate, requireBoardRole, requireTaskRole, requireWorkspaceRole, requireChecklistItemRole } from '../middleware/auth.js';
 import { csrfProtection } from '../middleware/csrf.js';
 import { validateBody } from '../validators/index.js';
 
@@ -110,6 +110,7 @@ router.patch(
   '/checklists/:itemId',
   authenticate,
   csrfProtection,
+  requireChecklistItemRole('member', 'itemId'),
   controller.updateChecklistItem
 );
 
@@ -118,6 +119,7 @@ router.delete(
   '/checklists/:itemId',
   authenticate,
   csrfProtection,
+  requireChecklistItemRole('member', 'itemId'),
   controller.deleteChecklistItem
 );
 
@@ -125,6 +127,7 @@ router.delete(
 router.get(
   '/workspaces/:workspaceId/tasks/history',
   authenticate,
+  requireWorkspaceRole('member', 'workspaceId'),
   controller.getCompletedTasksHistory
 );
 
@@ -132,6 +135,7 @@ router.post(
   '/workspaces/:workspaceId/tasks/history/prune',
   authenticate,
   csrfProtection,
+  requireWorkspaceRole('admin', 'workspaceId'),
   controller.pruneCompletedTasks
 );
 

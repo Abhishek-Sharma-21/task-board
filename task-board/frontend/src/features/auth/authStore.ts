@@ -7,7 +7,6 @@ import type { User } from '../../schemas';
 interface AuthResponseData {
   user: User;
   accessToken: string;
-  refreshToken: string;
 }
 
 function isAuthError(
@@ -47,9 +46,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         '/auth/login',
         { email, password },
       );
-      const { user, accessToken, refreshToken } = response.data.data;
+      const { user, accessToken } = response.data.data;
       localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
       set({ user, accessToken, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
@@ -64,9 +62,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         '/auth/register',
         { name, email, password },
       );
-      const { user, accessToken, refreshToken } = response.data.data;
+      const { user, accessToken } = response.data.data;
       localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
       set({ user, accessToken, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
@@ -84,7 +81,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } finally {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
       disconnectSocket();
       set({ user: null, accessToken: null, isLoading: false });
     }

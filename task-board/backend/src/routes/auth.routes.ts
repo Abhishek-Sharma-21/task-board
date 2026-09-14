@@ -15,6 +15,6 @@ router.post('/refresh', ensureCsrfCookie, controller.refresh);
 
 // Authenticated, state-changing: enforce strict double-submit CSRF.
 router.post('/logout', authenticate, csrfProtection, controller.logout);
-router.get('/me', authenticate, controller.me);
+router.get('/me', authenticate, ensureCsrfCookie, controller.me);
 
 export default router;
