@@ -134,29 +134,5 @@ Full theme support using CSS custom properties.
 | **Database** | PostgreSQL · Neon |
 | **Deployment** | Vercel · Render · Neon |
 
----
 
-## 🏗️ Architecture
-
-```text
-task-board/
-│
-├── frontend/          # React SPA
-│   ├── React
-│   ├── TypeScript
-│   ├── Vite
-│   └── Tailwind CSS
-│
-├── backend/           # REST API + WebSocket server
-│   ├── Node.js
-│   ├── Express
-│   ├── Prisma
-│   └── Socket.IO
-│
-├── mobile-app/        # React Native mobile client
-│   └── Expo
-│
-└── shared/            # Shared types & validation schemas
-    ├── Types
-    └── Zod schemas
 

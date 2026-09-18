@@ -11,7 +11,7 @@ import { Spinner } from '../components/Spinner';
 import { OfflineSyncBanner } from '../components/common/OfflineSyncBanner';
 import { ToastContainer } from '../components/common/ToastContainer';
 import { NotificationDropdown } from '../components/NotificationDropdown';
-import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, ChevronRight, Sun, Moon, Folder, LogOut, Users, Activity, Menu } from 'lucide-react';
+import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, Sun, Moon, Folder, LogOut, Users, Activity, Menu } from 'lucide-react';
 import { WorkspaceMembersModal } from '../components/WorkspaceMembersModal';
 
 export const AppLayout: React.FC = () => {

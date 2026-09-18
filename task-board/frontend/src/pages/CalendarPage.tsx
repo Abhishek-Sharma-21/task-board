@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useProjectStore } from '../features/projects/projectStore';
-import { useBoardStore } from '../features/boards/boardStore';
 import { TaskDrawer } from '../features/boards/TaskDrawer';
 import type { Task } from '../schemas';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';

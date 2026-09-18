@@ -5,7 +5,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useProjectMemberStore } from '../projects/projectMemberStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
 import { getSocket } from '../../sockets/socket';
-import { Search, CalendarDays, Maximize2 } from 'lucide-react';
+import { Search, CalendarDays } from 'lucide-react';
 
 interface TaskChatViewProps {
   task: Task;
