@@ -72,8 +72,18 @@ export async function createProject(
       });
     }
 
+    if (userId !== headUserId) {
+      await tx.projectMember.create({
+        data: {
+          projectId: p.id,
+          userId,
+          role: headUserId ? 'member' : 'head',
+        },
+      });
+    }
+
     const uniqueMemberIds = memberUserIds.filter(
-      (mId) => isValidId(mId) && mId !== headUserId
+      (mId) => isValidId(mId) && mId !== headUserId && mId !== userId
     );
 
     for (const mId of uniqueMemberIds) {
