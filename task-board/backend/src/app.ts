@@ -17,6 +17,8 @@ import analyticsRouter from './routes/analytics.routes.js';
 import taskChatRouter from './routes/taskChat.routes.js';
 import inviteRouter from './routes/invite.routes.js';
 import { errorHandler, notFound } from './utils/errors.js';
+import { generateCsrfToken } from './utils/csrf.js';
+import { setCsrfCookie } from './utils/cookies.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -57,6 +59,15 @@ export function createApp(): express.Express {
 
   app.get('/api/health', (_req, res) => {
     res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } });
+  });
+
+  // CSRF token endpoint: returns token in body AND sets cookie.
+  // GET so it's never blocked by CSRF protection itself.
+  app.get('/api/csrf', (req, res) => {
+    const existing = req.cookies?.['tb_csrf'];
+    const token = existing ?? generateCsrfToken();
+    setCsrfCookie(res, token);
+    res.json({ success: true, data: { csrfToken: token } });
   });
 
   // Environment-aware rate limiting (bypassed in dev & test for frictionless local workflow)
