@@ -40,6 +40,7 @@ export async function markAsRead(req: Request, res: Response, next: NextFunction
 
     res.status(200).json({
       success: true,
+      deletedIds: [notificationId],
     });
   } catch (err) {
     next(err);

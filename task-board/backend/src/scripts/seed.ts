@@ -22,6 +22,7 @@ async function seed() {
   await prisma.activity.deleteMany({});
   await prisma.notification.deleteMany({});
   await prisma.comment.deleteMany({});
+  await prisma.taskAssignee.deleteMany({});
   await prisma.task.deleteMany({});
   await prisma.boardColumn.deleteMany({});
   await prisma.board.deleteMany({});
@@ -161,9 +162,9 @@ async function seed() {
       columnId: columnsB1[0].id, // TODO
       position: 0,
       priority: 'Urgent',
-      assigneeId: admin2.id,
       labels: ['Backend', 'Database'],
       dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      assigneeIds: [admin2.id],
     },
     {
       title: 'Set up Docker configurations',
@@ -173,8 +174,8 @@ async function seed() {
       columnId: columnsB1[0].id, // TODO
       position: 1,
       priority: 'Low',
-      assigneeId: member1.id,
       labels: ['Devops'],
+      assigneeIds: [member1.id],
     },
     {
       title: 'Create API Skeleton',
@@ -184,8 +185,8 @@ async function seed() {
       columnId: columnsB1[0].id, // TODO
       position: 2,
       priority: 'High',
-      assigneeId: admin1.id,
       labels: ['Backend'],
+      assigneeIds: [admin1.id],
     },
     {
       title: 'Fix auth middleware token refresh',
@@ -195,8 +196,8 @@ async function seed() {
       columnId: columnsB1[1].id, // IN PROGRESS
       position: 0,
       priority: 'High',
-      assigneeId: member2.id,
       labels: ['Security', 'Bug'],
+      assigneeIds: [member2.id],
     },
     {
       title: 'Collaborative Kanban board UI',
@@ -206,8 +207,8 @@ async function seed() {
       columnId: columnsB1[1].id, // IN PROGRESS
       position: 1,
       priority: 'High',
-      assigneeId: owner.id,
       labels: ['Frontend', 'UI'],
+      assigneeIds: [owner.id],
     },
     {
       title: 'Socket.IO room setup',
@@ -217,8 +218,8 @@ async function seed() {
       columnId: columnsB1[1].id, // IN PROGRESS
       position: 2,
       priority: 'Urgent',
-      assigneeId: owner.id,
       labels: ['Realtime'],
+      assigneeIds: [owner.id],
     },
     {
       title: 'Login/Register form validation',
@@ -228,8 +229,8 @@ async function seed() {
       columnId: columnsB1[2].id, // REVIEW
       position: 0,
       priority: 'Medium',
-      assigneeId: member3.id,
       labels: ['Frontend'],
+      assigneeIds: [member3.id],
     },
     {
       title: 'API Unit tests',
@@ -239,8 +240,8 @@ async function seed() {
       columnId: columnsB1[2].id, // REVIEW
       position: 1,
       priority: 'Medium',
-      assigneeId: member4.id,
       labels: ['Testing'],
+      assigneeIds: [member4.id],
     },
     {
       title: 'Initial setup with Vite & TypeScript',
@@ -250,8 +251,8 @@ async function seed() {
       columnId: columnsB1[3].id, // DONE
       position: 0,
       priority: 'Medium',
-      assigneeId: owner.id,
       labels: ['Frontend'],
+      assigneeIds: [owner.id],
     },
 
     // Marketing Board Tasks
@@ -263,8 +264,8 @@ async function seed() {
       columnId: columnsB2[0].id,
       position: 0,
       priority: 'Low',
-      assigneeId: member3.id,
       labels: ['Marketing'],
+      assigneeIds: [member3.id],
     },
     {
       title: 'Produce feature demo video',
@@ -274,8 +275,8 @@ async function seed() {
       columnId: columnsB2[1].id,
       position: 0,
       priority: 'High',
-      assigneeId: member1.id,
       labels: ['Video'],
+      assigneeIds: [member1.id],
     },
     {
       title: 'Prepare press release draft',
@@ -285,8 +286,8 @@ async function seed() {
       columnId: columnsB2[3].id,
       position: 0,
       priority: 'Medium',
-      assigneeId: admin1.id,
       labels: ['PR'],
+      assigneeIds: [admin1.id],
     },
 
     // R&D Kanban Tasks (8 Tasks)
@@ -298,8 +299,8 @@ async function seed() {
       columnId: columnsB3[0].id,
       position: 0,
       priority: 'Urgent',
-      assigneeId: member1.id,
       labels: ['Simulation'],
+      assigneeIds: [member1.id],
     },
     {
       title: 'Test combustion chamber pressures',
@@ -319,8 +320,8 @@ async function seed() {
       columnId: columnsB3[0].id,
       position: 2,
       priority: 'Medium',
-      assigneeId: member2.id,
       labels: ['Quality'],
+      assigneeIds: [member2.id],
     },
     {
       title: 'Optimize liquid oxygen pump flow',
@@ -330,8 +331,8 @@ async function seed() {
       columnId: columnsB3[1].id,
       position: 0,
       priority: 'High',
-      assigneeId: owner.id,
       labels: ['CAD'],
+      assigneeIds: [owner.id],
     },
     {
       title: 'Check structural load bounds of nozzle',
@@ -341,8 +342,8 @@ async function seed() {
       columnId: columnsB3[1].id,
       position: 1,
       priority: 'Medium',
-      assigneeId: member1.id,
       labels: ['FEA'],
+      assigneeIds: [member1.id],
     },
     {
       title: 'Compare gas generator models',
@@ -362,8 +363,8 @@ async function seed() {
       columnId: columnsB3[3].id,
       position: 0,
       priority: 'Low',
-      assigneeId: member2.id,
       labels: ['Calibration'],
+      assigneeIds: [member2.id],
     },
     {
       title: 'Draft nozzle heat flow findings',
@@ -373,19 +374,25 @@ async function seed() {
       columnId: columnsB3[3].id,
       position: 1,
       priority: 'Medium',
-      assigneeId: admin1.id,
       labels: ['Documentation'],
+      assigneeIds: [admin1.id],
     },
   ];
 
   const insertedTasks: any[] = [];
   for (const t of tasksData) {
+    const { assigneeIds, ...taskData } = t;
     const task = await prisma.task.create({
       data: {
         createdBy: owner.id,
-        ...t,
+        ...taskData,
       },
     });
+    if (assigneeIds && assigneeIds.length > 0) {
+      await prisma.taskAssignee.createMany({
+        data: assigneeIds.map((userId: string) => ({ taskId: task.id, userId })),
+      });
+    }
     insertedTasks.push(task);
   }
 

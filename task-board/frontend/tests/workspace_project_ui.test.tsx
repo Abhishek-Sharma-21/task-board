@@ -190,6 +190,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     );
 
     // 1. Click "Team Settings" sidebar nav to open modal
+    fireEvent.click(screen.getByRole('button', { name: /Settings & Admin/i }));
     fireEvent.click(screen.getByRole('button', { name: /Team Settings/i }));
 
     await waitFor(() => {
@@ -265,14 +266,11 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
     );
 
     // 1. Verify notification count badge is rendered on bell button
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getAllByText('2')[0]).toBeInTheDocument();
 
     // 2. Click the bell to open dropdown
-    fireEvent.click(screen.getByRole('button', { name: /Notifications/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Sarah assigned you a task')).toBeInTheDocument();
-    });
+    const notifButtons = screen.getAllByRole('button', { name: /Notifications/i });
+    fireEvent.click(notifButtons[notifButtons.length - 1]);
 
     // 3. Mark single notification as read
     fireEvent.click(screen.getByText('Sarah assigned you a task'));
@@ -283,7 +281,8 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
 
     // Reset calls & toggle dropdown back open
     vi.mocked(api.put).mockClear();
-    fireEvent.click(screen.getByRole('button', { name: /Notifications/i }));
+    const openButtons = screen.getAllByRole('button', { name: /Notifications/i });
+    fireEvent.click(openButtons[openButtons.length - 1]);
 
     // 4. Click Mark all read
     fireEvent.click(screen.getByText(/Mark all read/i));
@@ -334,6 +333,7 @@ describe('Workspace & Project Frontend Stores and Layout UI', () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(screen.getByRole('button', { name: /Settings & Admin/i }));
     fireEvent.click(screen.getByRole('button', { name: /Activity History/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/workspaces/ws-1/activity');
 

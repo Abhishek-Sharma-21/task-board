@@ -1,17 +1,21 @@
-import React, { useState, useMemo } from 'react';
-import type { Task } from '../../schemas';
-import { TaskDrawer } from '../boards/TaskDrawer';
-import { parseLocalDate, todayString } from '../../utils/dates';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useProjectStore } from '../features/projects/projectStore';
+import { useBoardStore } from '../features/boards/boardStore';
+import { TaskDrawer } from '../features/boards/TaskDrawer';
+import type { Task } from '../schemas';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { parseLocalDate, todayString } from '../utils/dates';
 
-interface ProjectCalendarViewProps {
-  tasks: Task[];
-  onSelectTask?: (task: Task) => void;
-}
-
-export const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({ tasks }) => {
+export const CalendarPage: React.FC = () => {
+  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { projects, fetchProjects } = useProjectStore();
+  const { fetchBoards, fetchColumnsAndTasks } = useBoardStore();
+  
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterPriority, setFilterPriority] = useState<string>('All');
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -23,6 +27,47 @@ export const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({ tasks 
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
+
+  // Fetch projects when workspace changes
+  useEffect(() => {
+    if (workspaceId) {
+      fetchProjects(workspaceId);
+    }
+  }, [workspaceId, fetchProjects]);
+
+  // Fetch boards for all projects and collect tasks
+  useEffect(() => {
+    const loadAllTasks = async () => {
+      if (projects.length === 0) return;
+      
+      const allTasksCollected: Task[] = [];
+      
+      for (const project of projects) {
+        try {
+          await fetchBoards(project.id);
+          // Get boards from store after fetch
+          const currentBoards = useBoardStore.getState().boards;
+          
+          for (const board of currentBoards) {
+            try {
+              await fetchColumnsAndTasks(board.id);
+              const currentTasks = useBoardStore.getState().tasksByColumn;
+              const boardTasks = Object.values(currentTasks).flat();
+              allTasksCollected.push(...boardTasks);
+            } catch (err) {
+              console.error(`Failed to fetch tasks for board ${board.id}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to fetch boards for project ${project.id}:`, err);
+        }
+      }
+      
+      setAllTasks(allTasksCollected);
+    };
+    
+    loadAllTasks();
+  }, [projects, fetchBoards, fetchColumnsAndTasks]);
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -38,12 +83,12 @@ export const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({ tasks 
 
   // Filter tasks for calendar view
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    return allTasks.filter((task) => {
       if (!task.dueDate) return false;
       if (filterPriority !== 'All' && task.priority !== filterPriority) return false;
       return true;
     });
-  }, [tasks, filterPriority]);
+  }, [allTasks, filterPriority]);
 
   // Group tasks by date string (YYYY-MM-DD)
   const tasksByDate = useMemo(() => {
@@ -78,15 +123,16 @@ export const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({ tasks 
       {/* Calendar Header Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border border-border p-4 rounded-sm">
         <div className="flex items-center space-x-3">
+          <Calendar className="w-5 h-5 text-primary" />
           <h3 className="text-lg font-black uppercase text-text-primary">
             {monthNames[month]} {year}
           </h3>
           <div className="flex items-center space-x-1 font-mono text-xs">
             <button
               onClick={handlePrevMonth}
-              className="px-2 py-1 bg-surface-hover border border-border rounded-xs hover:border-primary font-bold text-text-primary"
+              className="p-1.5 bg-surface-hover border border-border rounded-xs hover:border-primary text-text-primary transition-colors"
             >
-              &lt;
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={handleToday}
@@ -96,9 +142,9 @@ export const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({ tasks 
             </button>
             <button
               onClick={handleNextMonth}
-              className="px-2 py-1 bg-surface-hover border border-border rounded-xs hover:border-primary font-bold text-text-primary"
+              className="p-1.5 bg-surface-hover border border-border rounded-xs hover:border-primary text-text-primary transition-colors"
             >
-              &gt;
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>

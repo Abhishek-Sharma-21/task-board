@@ -24,11 +24,11 @@ export async function createTask(req: Request, res: Response, next: NextFunction
       return;
     }
 
-    if (parsedBody.assigneeId) {
+    if (parsedBody.assigneeIds && parsedBody.assigneeIds.length > 0) {
       const board = await prisma.board.findUnique({ where: { id: boardId } });
       if (board) {
         const project = await prisma.project.findUnique({ where: { id: board.projectId } });
-        if (project && parsedBody.assigneeId !== userId) {
+        if (project) {
           const wsMember = await prisma.workspaceMember.findUnique({
             where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
           });
@@ -45,18 +45,20 @@ export async function createTask(req: Request, res: Response, next: NextFunction
             });
             return;
           }
-        }
 
-        const assigneeMembership = await prisma.projectMember.findUnique({
-          where: { projectId_userId: { projectId: board.projectId, userId: parsedBody.assigneeId } },
-        });
-        if (!assigneeMembership) {
-          res.status(400).json({
-            success: false,
-            message: 'Assignee must be a member of this project',
-            errorCode: 'INVALID_ASSIGNEE',
-          });
-          return;
+          for (const assigneeId of parsedBody.assigneeIds) {
+            const assigneeMembership = await prisma.projectMember.findUnique({
+              where: { projectId_userId: { projectId: board.projectId, userId: assigneeId } },
+            });
+            if (!assigneeMembership) {
+              res.status(400).json({
+                success: false,
+                message: 'All assignees must be members of this project',
+                errorCode: 'INVALID_ASSIGNEE',
+              });
+              return;
+            }
+          }
         }
       }
     }
@@ -77,17 +79,20 @@ export async function createTask(req: Request, res: Response, next: NextFunction
           { projectId: project.id, boardId: board.id, taskId: task.id }
         );
 
-        // Notify Assignee (if task is assigned on creation)
-        if (task.assigneeId) {
-          const user = await prisma.user.findUnique({ where: { id: userId } });
-          await notificationService.createNotification(
-            task.assigneeId,
-            userId,
-            'task_assigned',
-            'Task Assigned',
-            `${user?.name || 'Someone'} assigned you "${task.title}"`,
-            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${board.id}`
-          );
+        // Notify Assignees (if task is assigned on creation)
+        const assigneeIds = parsedBody.assigneeIds || [];
+        for (const assigneeId of assigneeIds) {
+          if (assigneeId !== userId) {
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            await notificationService.createNotification(
+              assigneeId,
+              userId,
+              'task_assigned',
+              'Task Assigned',
+              `${user?.name || 'Someone'} assigned you "${task.title}"`,
+              `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${board.id}`
+            );
+          }
         }
       }
     }
@@ -157,7 +162,7 @@ export async function updateTask(req: Request, res: Response, next: NextFunction
       return;
     }
 
-    if (parsedBody.assigneeId !== undefined && parsedBody.assigneeId !== (originalTask.assigneeId || null)) {
+    if (parsedBody.assigneeIds !== undefined && parsedBody.assigneeIds.length > 0) {
       const wsMember = await prisma.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId: (await prisma.project.findUnique({ where: { id: originalTask.projectId } }))!.workspaceId, userId } },
       });
@@ -176,17 +181,19 @@ export async function updateTask(req: Request, res: Response, next: NextFunction
       }
     }
 
-    if (parsedBody.assigneeId !== undefined && parsedBody.assigneeId !== null) {
-      const assigneeMembership = await prisma.projectMember.findUnique({
-        where: { projectId_userId: { projectId: originalTask.projectId, userId: parsedBody.assigneeId } },
-      });
-      if (!assigneeMembership) {
-        res.status(400).json({
-          success: false,
-          message: 'Assignee must be a member of this project',
-          errorCode: 'INVALID_ASSIGNEE',
+    if (parsedBody.assigneeIds !== undefined && parsedBody.assigneeIds.length > 0) {
+      for (const assigneeId of parsedBody.assigneeIds) {
+        const assigneeMembership = await prisma.projectMember.findUnique({
+          where: { projectId_userId: { projectId: originalTask.projectId, userId: assigneeId } },
         });
-        return;
+        if (!assigneeMembership) {
+          res.status(400).json({
+            success: false,
+            message: 'All assignees must be members of this project',
+            errorCode: 'INVALID_ASSIGNEE',
+          });
+          return;
+        }
       }
     }
 
@@ -199,32 +206,36 @@ export async function updateTask(req: Request, res: Response, next: NextFunction
       const metadata = { projectId: project.id, boardId: task.boardId, taskId: task.id };
 
       // Log assignee change
-      if (parsedBody.assigneeId !== undefined && originalTask.assigneeId !== task.assigneeId) {
-        if (task.assigneeId) {
-          const assignee = await prisma.user.findUnique({ where: { id: task.assigneeId } });
-          await activityService.createActivity(
-            project.workspaceId,
-            userId,
-            'assigned',
-            `assigned task "${task.title}" to ${assignee?.name || 'someone'}`,
-            metadata
-          );
+      if (parsedBody.assigneeIds !== undefined) {
+        const newAssigneeIds = parsedBody.assigneeIds;
+        if (newAssigneeIds.length > 0) {
+          for (const assigneeId of newAssigneeIds) {
+            const assignee = await prisma.user.findUnique({ where: { id: assigneeId } });
+            await activityService.createActivity(
+              project.workspaceId,
+              userId,
+              'assigned',
+              `assigned task "${task.title}" to ${assignee?.name || 'someone'}`,
+              metadata
+            );
 
-          // Notify new assignee
-          await notificationService.createNotification(
-            task.assigneeId,
-            userId,
-            'task_assigned',
-            'Task Assigned',
-            `${user?.name || 'Someone'} assigned you "${task.title}"`,
-            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
-          );
+            if (assigneeId !== userId) {
+              await notificationService.createNotification(
+                assigneeId,
+                userId,
+                'task_assigned',
+                'Task Assigned',
+                `${user?.name || 'Someone'} assigned you "${task.title}"`,
+                `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
+              );
+            }
+          }
         } else {
           await activityService.createActivity(
             project.workspaceId,
             userId,
             'unassigned',
-            `removed assignee from task "${task.title}"`,
+            `removed assignees from task "${task.title}"`,
             metadata
           );
         }
@@ -303,16 +314,20 @@ export async function moveTask(req: Request, res: Response, next: NextFunction):
           metadata
         );
 
-        // Notify assignee if moved by someone else
-        if (task.assigneeId) {
-          await notificationService.createNotification(
-            task.assigneeId,
-            userId,
-            'task_moved',
-            'Task Moved',
-            `${user?.name || 'Someone'} moved task "${task.title}" to ${toCol?.name || 'column'}`,
-            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
-          );
+        // Notify assignees if moved by someone else
+        if (task.assignees && task.assignees.length > 0) {
+          for (const assignee of task.assignees) {
+            if (assignee.id !== userId) {
+              await notificationService.createNotification(
+                assignee.id,
+                userId,
+                'task_moved',
+                'Task Moved',
+                `${user?.name || 'Someone'} moved task "${task.title}" to ${toCol?.name || 'column'}`,
+                `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
+              );
+            }
+          }
         }
       } else {
         await activityService.createActivity(

@@ -150,7 +150,7 @@ describe('Kanban Board Page & Stores integration tests', () => {
     });
 
     // Click trigger and type title
-    fireEvent.click(screen.getByText(/Add Task/i));
+    fireEvent.click(screen.getAllByText(/Add Task/i)[0]);
     fireEvent.change(screen.getByPlaceholderText(/ENTER TASK TITLE/i), {
       target: { value: 'Write unit tests' },
     });

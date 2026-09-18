@@ -146,7 +146,7 @@ export const CreateTaskInput = z.object({
   description: z.string().max(5000).optional().default(''),
   columnId: z.string(),
   priority: TaskPriority.default('Medium'),
-  assigneeId: z.string().nullable().optional(),
+  assigneeIds: z.array(z.string()).optional().default([]),
   labels: z.array(z.string().max(40)).max(20).optional().default([]),
   dueDate: z
     .preprocess((val) => {
@@ -166,9 +166,19 @@ export const UpdateTaskInput = z.object({
   priority: TaskPriority.optional(),
   status: z.string().optional(),
   columnId: z.string().optional(),
-  assigneeId: z.string().nullable().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   labels: z.array(z.string().max(40)).max(20).optional(),
-  dueDate: z.string().datetime().nullable().optional(),
+  dueDate: z.preprocess(
+    (val) => {
+      if (typeof val === 'string' && val.trim() !== '') {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString();
+      }
+      if (val === null || val === '') return null;
+      return val;
+    },
+    z.string().datetime().nullable().optional()
+  ),
   expectedVersion: z.number().int().nonnegative().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInput>;
@@ -228,7 +238,12 @@ export const TaskSchema = z.object({
   columnId: z.string(),
   position: z.number(),
   priority: TaskPriority,
-  assigneeId: z.string().nullable().optional(),
+  assignees: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    avatarUrl: z.string().optional(),
+  })).optional().default([]),
   createdBy: z.string(),
   labels: z.array(z.string()),
   dueDate: z.union([z.date(), z.string()]).nullable().optional(),

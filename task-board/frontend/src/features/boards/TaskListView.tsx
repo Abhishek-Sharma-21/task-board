@@ -18,10 +18,9 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ tasks, columns, onOp
     return columns.find((c) => c.id === colId)?.name || 'Unknown';
   };
 
-  const getAssigneeName = (assigneeId?: string | null) => {
-    if (!assigneeId) return 'Unassigned';
-    const m = members.find((mem) => mem.id === assigneeId);
-    return m ? m.name : 'Assigned';
+  const getAssigneeName = (assignees?: Array<{id: string; name: string}>) => {
+    if (!assignees || assignees.length === 0) return 'Unassigned';
+    return assignees.map(a => a.name).join(', ');
   };
 
   const getPriorityStyle = (priority: string) => {
@@ -112,7 +111,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ tasks, columns, onOp
                   </span>
                 </td>
                 <td className="py-3 px-4 text-text-secondary">
-                  {getAssigneeName(task.assigneeId)}
+                  {getAssigneeName(task.assignees)}
                 </td>
                 <td className="py-3 px-4">
                   {task.dueDate ? (

@@ -35,6 +35,7 @@ frontend/dist/
 backend/dist/
 shared/dist/
 *.tsbuildinfo
-
+# Mobile app (excluded from upload)
+mobile-app/
 
 *.zip

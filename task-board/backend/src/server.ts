@@ -17,9 +17,9 @@ async function main(): Promise<void> {
   // Initialize WebSockets
   initSocket(httpServer);
 
-  httpServer.listen(env.port, () => {
+  httpServer.listen(env.port, '0.0.0.0', () => {
     // eslint-disable-next-line no-console
-    console.log(`[server] listening on :${env.port}`);
+    console.log(`[server] listening on 0.0.0.0:${env.port}`);
   });
 }
 

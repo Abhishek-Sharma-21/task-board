@@ -49,9 +49,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     try {
       await api.put(`/notifications/${id}/read`);
       set((state) => ({
-        notifications: state.notifications.map((n) =>
-          n.id === id ? { ...n, read: true } : n
-        ),
+        notifications: state.notifications.filter((n) => n.id !== id),
       }));
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to mark notification as read' });
@@ -61,9 +59,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   markAllAsRead: async () => {
     try {
       await api.put('/notifications/read-all');
-      set((state) => ({
-        notifications: state.notifications.map((n) => ({ ...n, read: true })),
-      }));
+      set({ notifications: [] });
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to mark all notifications as read' });
     }

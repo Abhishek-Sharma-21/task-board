@@ -75,12 +75,10 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
     const socket = getSocket();
 
     const handleCreated = (msg: TaskChatMessage) => {
-      if (msg.taskId === task.id) {
+      if (msg.taskId === task.id && msg.userId !== currentUser.id) {
         addOrUpdateRealtimeMessage(task.id, msg);
-        if (!isScrolledToBottomRef.current && msg.userId !== currentUser.id) {
+        if (!isScrolledToBottomRef.current) {
           setShowNewMessagesBtn(true);
-        } else {
-          scrollToBottom();
         }
       }
     };

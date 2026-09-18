@@ -97,6 +97,31 @@ export async function getWorkspaceAnalytics(
   let assignedToUserTasks = 0;
   let completedThisWeek = 0;
 
+  // Collect all task IDs to bulk-fetch assignees
+  const allTaskIds: string[] = [];
+  for (const project of projects) {
+    for (const board of project.boards) {
+      for (const col of board.columns) {
+        for (const task of col.tasks) {
+          allTaskIds.push(task.id);
+        }
+      }
+    }
+  }
+
+  const allTaskAssignees = allTaskIds.length > 0
+    ? await prisma.taskAssignee.findMany({
+        where: { taskId: { in: allTaskIds } },
+        select: { taskId: true, userId: true },
+      })
+    : [];
+  const assignedTasksByUser = new Set<string>();
+  allTaskAssignees.forEach((ta) => {
+    if (ta.userId === requestingUserId) {
+      assignedTasksByUser.add(ta.taskId);
+    }
+  });
+
   const projectMetrics = projects.map((project) => {
     let projTotal = 0;
     let projCompleted = 0;
@@ -111,7 +136,7 @@ export async function getWorkspaceAnalytics(
           projTotal++;
           totalTasks++;
 
-          if (task.assigneeId === requestingUserId) {
+          if (assignedTasksByUser.has(task.id)) {
             assignedToUserTasks++;
           }
 

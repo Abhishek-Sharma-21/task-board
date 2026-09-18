@@ -1152,7 +1152,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
                         {new Date(t.updatedAt).toLocaleDateString()} {new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="py-3 px-4 text-text-secondary">
-                        {t.assignee?.name || 'Unassigned'}
+                        {t.assignees && t.assignees.length > 0 ? t.assignees.map(a => a.name).join(', ') : 'Unassigned'}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button

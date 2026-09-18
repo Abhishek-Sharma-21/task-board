@@ -38,7 +38,6 @@ export async function validateTaskAccess(taskId: string, userId: string) {
       boardId: true,
       projectId: true,
       title: true,
-      assigneeId: true,
     },
   });
 
@@ -192,6 +191,11 @@ export async function sendTaskChatMessage(
 
   const { task } = await validateTaskAccess(taskId, userId);
 
+  const project = await prisma.project.findUnique({
+    where: { id: task.projectId },
+    select: { workspaceId: true },
+  });
+
   const created = await prisma.taskChatMessage.create({
     data: {
       taskId,
@@ -210,10 +214,11 @@ export async function sendTaskChatMessage(
 
   const senderName = created.user?.name || 'A team member';
 
-  // Build target user set to notify (Assignee, Creator, Project Members, Chat Participants)
+  // Build target user set to notify (Assignees, Creator, Project Members, Chat Participants)
   const targetUserIds = new Set<string>();
 
-  if (task.assigneeId) targetUserIds.add(task.assigneeId);
+  const taskAssignees = await prisma.taskAssignee.findMany({ where: { taskId } });
+  taskAssignees.forEach((ta) => targetUserIds.add(ta.userId));
   const fullTask = await prisma.task.findUnique({ where: { id: taskId }, select: { createdBy: true } });
   if (fullTask?.createdBy) targetUserIds.add(fullTask.createdBy);
 
@@ -239,7 +244,7 @@ export async function sendTaskChatMessage(
       'comment_added',
       `New Chat Message: ${task.title}`,
       `${senderName}: "${body.slice(0, 100)}"`,
-      `/boards/${task.boardId}?task=${taskId}`
+      `/workspaces/${project?.workspaceId}/projects/${task.projectId}/boards/${task.boardId}`
     );
   }
 
@@ -261,7 +266,7 @@ export async function sendTaskChatMessage(
         'comment_mention',
         `Mention in Task Chat: ${task.title}`,
         `${senderName} mentioned you: "${body.slice(0, 100)}"`,
-        `/boards/${task.boardId}?task=${taskId}`
+        `/workspaces/${project?.workspaceId}/projects/${task.projectId}/boards/${task.boardId}`
       );
     }
   }

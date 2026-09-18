@@ -40,18 +40,21 @@ export async function createComment(req: Request, res: Response, next: NextFunct
           { projectId: project.id, boardId: task.boardId, taskId: task.id }
         );
 
-        // Notify Assignee
-        if (task.assigneeId && task.assigneeId !== userId) {
-          const user = await prisma.user.findUnique({ where: { id: userId } });
-          const shortBody = comment.body.length > 60 ? `${comment.body.slice(0, 60)}...` : comment.body;
-          await notificationService.createNotification(
-            task.assigneeId,
-            userId,
-            'comment_added',
-            'New Comment',
-            `${user?.name || 'Someone'} commented on "${task.title}": "${shortBody}"`,
-            `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
-          );
+        // Notify Assignees
+        const taskAssignees = await prisma.taskAssignee.findMany({ where: { taskId: task.id } });
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const shortBody = comment.body.length > 60 ? `${comment.body.slice(0, 60)}...` : comment.body;
+        for (const ta of taskAssignees) {
+          if (ta.userId !== userId) {
+            await notificationService.createNotification(
+              ta.userId,
+              userId,
+              'comment_added',
+              'New Comment',
+              `${user?.name || 'Someone'} commented on "${task.title}": "${shortBody}"`,
+              `/workspaces/${project.workspaceId}/projects/${project.id}/boards/${task.boardId}`
+            );
+          }
         }
 
         // Mention Parsing: notify mentioned project members
@@ -60,7 +63,6 @@ export async function createComment(req: Request, res: Response, next: NextFunct
           include: { user: true },
         });
 
-        const user = await prisma.user.findUnique({ where: { id: userId } });
         const mentionedUserIds = new Set<string>();
 
         for (const pm of projectMembers) {

@@ -19,10 +19,23 @@ export interface WorkspaceMember {
   role: 'owner' | 'admin' | 'member';
 }
 
+export interface WorkspaceInvite {
+  id: string;
+  workspaceId: string;
+  email: string;
+  token: string;
+  role: string;
+  invitedById: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
 interface WorkspaceState {
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
   members: WorkspaceMember[];
+  invites: WorkspaceInvite[];
   membersLoaded: boolean;
   lastFetchedWorkspaceId: string | null;
   lastMembersFetchedAt: number | null;
@@ -41,6 +54,10 @@ interface WorkspaceState {
   inviteMember: (workspaceId: string, email: string, role: 'admin' | 'member') => Promise<void>;
   changeMemberRole: (workspaceId: string, userId: string, role: 'admin' | 'member') => Promise<void>;
   removeMember: (workspaceId: string, userId: string) => Promise<void>;
+  fetchInvites: (workspaceId: string) => Promise<void>;
+  createInviteLink: (workspaceId: string) => Promise<WorkspaceInvite>;
+  revokeInvite: (workspaceId: string, inviteId: string) => Promise<void>;
+  acceptInvite: (token: string) => Promise<void>;
 
   completedTasks: any[];
   isCompletedTasksLoading: boolean;
@@ -53,6 +70,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   activeWorkspace: null,
   members: [],
+  invites: [],
   membersLoaded: false,
   lastFetchedWorkspaceId: null,
   lastMembersFetchedAt: null,
@@ -263,6 +281,45 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await get().fetchMembers(workspaceId, true);
     } catch (err: any) {
       throw new Error(err.response?.data?.message || 'Failed to remove member');
+    }
+  },
+
+  fetchInvites: async (workspaceId) => {
+    try {
+      const res = await api.get<{ success: true; data: WorkspaceInvite[] }>(`/workspaces/${workspaceId}/invites`);
+      if (get().activeWorkspace?.id === workspaceId) {
+        set({ invites: res.data.data });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch invites:', err);
+    }
+  },
+
+  createInviteLink: async (workspaceId) => {
+    try {
+      const res = await api.post<{ success: true; data: WorkspaceInvite }>(`/workspaces/${workspaceId}/invites/link`);
+      const invite = res.data.data;
+      set((state) => ({ invites: [invite, ...state.invites] }));
+      return invite;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Failed to create invite link');
+    }
+  },
+
+  revokeInvite: async (workspaceId, inviteId) => {
+    try {
+      await api.delete(`/workspaces/${workspaceId}/invites/${inviteId}`);
+      set((state) => ({ invites: state.invites.filter((i) => i.id !== inviteId) }));
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Failed to revoke invite');
+    }
+  },
+
+  acceptInvite: async (token) => {
+    try {
+      await api.post('/invites/accept', { token });
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Failed to accept invite');
     }
   },
 

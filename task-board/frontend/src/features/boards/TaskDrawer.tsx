@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useBoardStore } from './boardStore';
 import { useAuthStore } from '../auth/authStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
@@ -8,6 +8,8 @@ import { useActivityStore, Activity } from '../activities/activityStore';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { TaskChatView } from '../chat/TaskChatView';
 import type { Task } from '../../schemas';
+import { MoreHorizontal, Copy, Archive, Trash2, MessageSquare, History, CheckCircle2, AlertTriangle, Clock, RotateCcw, X } from 'lucide-react';
+import { parseLocalDate } from '../../utils/dates';
 
 interface TaskDrawerProps {
   task: Task | null;
@@ -43,33 +45,45 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
-  const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
+  const [labels, setLabels] = useState<string[]>([]);
   const [labelText, setLabelText] = useState('');
   const [newChecklistText, setNewChecklistText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
+  const lastSyncedTaskIdRef = useRef<string | null>(null);
 
-  // Sync state with selected task
+  const currentDueDate = task?.dueDate ? parseLocalDate(task.dueDate) : '';
+  const isDirty = Boolean(
+    task &&
+      (title.trim() !== task.title ||
+        description !== (task.description || '') ||
+        priority !== task.priority ||
+        JSON.stringify(assigneeIds) !== JSON.stringify((task.assignees || []).map(a => a.id)) ||
+        dueDate !== currentDueDate ||
+        JSON.stringify(labels) !== JSON.stringify(task.labels || []))
+  );
+
+  // Sync state with selected task when task ID changes or when not dirty
   useEffect(() => {
     if (task) {
-      setTitle(task.title);
-      setDescription(task.description || '');
-      setPriority(task.priority as any);
-      setAssigneeId(task.assigneeId || null);
-      fetchProjectMembers(task.projectId);
-      if (task.dueDate) {
-        // Format to YYYY-MM-DD for native HTML date input
-        const dateObj = new Date(task.dueDate);
-        const yyyy = dateObj.getFullYear();
-        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(dateObj.getDate()).padStart(2, '0');
-        setDueDate(`${yyyy}-${mm}-${dd}`);
-      } else {
-        setDueDate('');
+      const isNewTask = lastSyncedTaskIdRef.current !== task.id;
+      if (isNewTask || !isDirty) {
+        setTitle(task.title);
+        setDescription(task.description || '');
+        setPriority(task.priority as any);
+        setAssigneeIds((task.assignees || []).map(a => a.id));
+        setDueDate(task.dueDate ? parseLocalDate(task.dueDate) : '');
+        setLabels(task.labels || []);
+        lastSyncedTaskIdRef.current = task.id;
       }
+      fetchProjectMembers(task.projectId);
     }
-  }, [task]);
+  }, [task, fetchProjectMembers, isDirty]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -80,6 +94,18 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target as Node)) {
+        setShowOverflowMenu(false);
+      }
+    };
+    if (showOverflowMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showOverflowMenu]);
 
   useEffect(() => {
     if (activeTab === 'history' && task) {
@@ -93,64 +119,57 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
 
   if (!task) return null;
 
-  const handleFieldSave = async (updates: any) => {
+  const handleSaveChanges = async () => {
+    if (!task || !isDirty || isSaving || !title.trim()) return;
+    setIsSaving(true);
     try {
       await updateTask(task.id, {
-        ...updates,
+        title: title.trim(),
+        description,
+        priority,
+        assigneeIds,
+        dueDate: dueDate ? dueDate : null,
+        labels,
         expectedVersion: task.version,
       });
-    } catch (err) {
-      // Handled
+    } catch (err: any) {
+      alert(err.message || 'Failed to save task changes');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleTitleBlur = () => {
-    if (title.trim() && title.trim() !== task.title) {
-      handleFieldSave({ title: title.trim() });
-    } else {
-      setTitle(task.title);
-    }
-  };
-
-  const handleDescBlur = () => {
-    if (description !== task.description) {
-      handleFieldSave({ description });
-    }
+  const handleDiscardChanges = () => {
+    if (!task) return;
+    setTitle(task.title);
+    setDescription(task.description || '');
+    setPriority(task.priority as any);
+    setAssigneeIds((task.assignees || []).map(a => a.id));
+    setDueDate(task.dueDate ? parseLocalDate(task.dueDate) : '');
+    setLabels(task.labels || []);
   };
 
   const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent';
-    setPriority(val);
-    handleFieldSave({ priority: val });
-  };
-
-  const handleAssigneeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value === 'unassigned' ? null : e.target.value;
-    setAssigneeId(val);
-    handleFieldSave({ assigneeId: val });
+    setPriority(e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent');
   };
 
   const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setDueDate(val);
-    handleFieldSave({ dueDate: val ? val : null });
+    setDueDate(e.target.value);
   };
 
   const handleAddLabel = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && labelText.trim()) {
       e.preventDefault();
       const newLabel = labelText.trim().toUpperCase();
-      if (!task.labels.includes(newLabel)) {
-        const newLabels = [...task.labels, newLabel];
-        handleFieldSave({ labels: newLabels });
+      if (!labels.includes(newLabel)) {
+        setLabels([...labels, newLabel]);
       }
       setLabelText('');
     }
   };
 
   const handleRemoveLabel = (labelToRemove: string) => {
-    const newLabels = task.labels.filter((l) => l !== labelToRemove);
-    handleFieldSave({ labels: newLabels });
+    setLabels(labels.filter((l) => l !== labelToRemove));
   };
 
   const handleToggleArchive = async () => {
@@ -191,6 +210,33 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
   const completedChecklists = checklists.filter((c) => c.completed).length;
   const checklistPercentage = checklists.length > 0 ? Math.round((completedChecklists / checklists.length) * 100) : 0;
 
+  const getTaskHealth = () => {
+    const now = new Date();
+    const isOverdue = task.dueDate && new Date(task.dueDate) < now;
+    const isHighPriority = task.priority === 'High' || task.priority === 'Urgent';
+    const hasChecklist = checklists.length > 0;
+    const allChecklistsComplete = hasChecklist && completedChecklists === checklists.length;
+
+    if (isOverdue && isHighPriority) {
+      return { status: 'critical', icon: AlertTriangle, label: 'Overdue & High Priority', color: 'text-danger' };
+    }
+    if (isOverdue) {
+      return { status: 'overdue', icon: Clock, label: 'Overdue', color: 'text-danger' };
+    }
+    if (allChecklistsComplete) {
+      return { status: 'complete', icon: CheckCircle2, label: 'All Subtasks Done', color: 'text-success' };
+    }
+    if (checklistPercentage > 0) {
+      return { status: 'progress', icon: Clock, label: `${checklistPercentage}% Complete`, color: 'text-primary' };
+    }
+    if (isHighPriority) {
+      return { status: 'high', icon: AlertTriangle, label: 'High Priority', color: 'text-warning' };
+    }
+    return { status: 'ok', icon: CheckCircle2, label: 'On Track', color: 'text-success' };
+  };
+
+  const taskHealth = getTaskHealth();
+
   return (
     <>
       {/* Backdrop */}
@@ -206,21 +252,23 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
           <div className="flex items-center space-x-2 font-mono text-[10px] font-bold uppercase tracking-wider overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => setActiveTab('details')}
-              className={`py-1 px-2 rounded-sm ${activeTab === 'details' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+              className={`py-1 px-2 rounded-sm flex items-center gap-1 ${activeTab === 'details' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
             >
               Details
             </button>
             <button
               onClick={() => setActiveTab('chat')}
-              className={`py-1 px-2 rounded-sm ${activeTab === 'chat' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+              className={`py-1 px-2 rounded-sm flex items-center gap-1 ${activeTab === 'chat' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
             >
-              Task Chat 💬
+              <MessageSquare className="w-3 h-3" />
+              Discussion
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`py-1 px-2 rounded-sm ${activeTab === 'history' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+              className={`py-1 px-2 rounded-sm flex items-center gap-1 ${activeTab === 'history' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
             >
-              Task History
+              <History className="w-3 h-3" />
+              Activity
             </button>
           </div>
           <div className="flex items-center space-x-2">
@@ -233,34 +281,60 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
                 Expand ↗
               </button>
             )}
-            <button
-              onClick={handleDuplicateTask}
-              className="text-[10px] font-mono text-text-muted hover:text-text-primary font-bold uppercase tracking-wider px-2 py-1 bg-surface border border-border rounded-sm"
-            >
-              Duplicate
-            </button>
-            <button
-              onClick={handleToggleArchive}
-              className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold uppercase tracking-wider px-2 py-1 bg-surface border border-border rounded-sm"
-            >
-              {task.isArchived ? 'Restore Task' : 'Archive Task'}
-            </button>
-            {canDeleteTask && (
+            
+            {/* Overflow Menu */}
+            <div className="relative" ref={overflowMenuRef}>
               <button
-                onClick={() => setShowConfirmDelete(true)}
-                disabled={isDeleting}
-                className="text-[10px] font-mono text-danger hover:text-danger-hover transition-colors uppercase tracking-wider font-bold flex items-center gap-1 disabled:opacity-50"
+                onClick={() => setShowOverflowMenu(!showOverflowMenu)}
+                className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-sm hover:bg-surface-hover"
               >
-                [Delete]
+                <MoreHorizontal className="w-5 h-5" />
               </button>
-            )}
+              
+              {showOverflowMenu && (
+                <div className="absolute right-0 mt-1 w-48 bg-surface-elevated border border-border rounded-sm shadow-theme-xl z-50 py-1">
+                  <button
+                    onClick={() => {
+                      handleDuplicateTask();
+                      setShowOverflowMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-mono text-text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Duplicate
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleToggleArchive();
+                      setShowOverflowMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-mono text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                  >
+                    {task.isArchived ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                    {task.isArchived ? 'Restore Task' : 'Archive Task'}
+                  </button>
+                  {canDeleteTask && (
+                    <button
+                      onClick={() => {
+                        setShowConfirmDelete(true);
+                        setShowOverflowMenu(false);
+                      }}
+                      disabled={isDeleting}
+                      className="w-full text-left px-3 py-2 text-xs font-mono text-danger hover:bg-surface-hover flex items-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            
             <button
               onClick={onClose}
               className="text-text-muted hover:text-text-primary transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -273,7 +347,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
         ) : activeTab === 'history' ? (
           <div className="flex-1 space-y-4 font-mono text-xs">
             <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted block">
-              TASK AUDIT LOG & HISTORY
+              ACTIVITY LOG
             </span>
             {loadingHistory ? (
               <div className="py-8 text-center text-xs text-text-muted">Loading history...</div>
@@ -298,6 +372,50 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
           </div>
         ) : (
         <div className="flex-1 space-y-6">
+          {/* Unsaved Changes Banner */}
+          {isDirty && (
+            <div className="bg-primary-light border-2 border-primary/40 p-3 rounded-sm flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-primary">
+                  Unsaved Draft Changes
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleDiscardChanges}
+                  disabled={isSaving}
+                  className="px-2.5 py-1 text-xs font-mono font-bold uppercase border border-border bg-surface text-text-secondary hover:text-text-primary rounded-sm transition-colors disabled:opacity-50"
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveChanges}
+                  disabled={isSaving || !title.trim()}
+                  className="px-3 py-1 text-xs font-mono font-bold uppercase bg-primary hover:bg-primary-hover text-white rounded-sm transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Task Health Indicator */}
+          <div className={`flex items-center gap-2 p-3 rounded-sm border ${
+            taskHealth.status === 'critical' ? 'bg-danger/10 border-danger/30' :
+            taskHealth.status === 'overdue' ? 'bg-danger/5 border-danger/20' :
+            taskHealth.status === 'complete' ? 'bg-success/10 border-success/30' :
+            taskHealth.status === 'high' ? 'bg-warning/10 border-warning/30' :
+            'bg-surface border-border'
+          }`}>
+            <taskHealth.icon className={`w-5 h-5 ${taskHealth.color}`} />
+            <span className={`text-xs font-mono font-bold uppercase tracking-wider ${taskHealth.color}`}>
+              {taskHealth.label}
+            </span>
+          </div>
+
           {/* Editable Title */}
           <div>
             <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
@@ -307,14 +425,12 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-              onKeyDown={(e) => e.key === 'Enter' && handleTitleBlur()}
               className="w-full bg-transparent border-0 border-b-2 border-transparent hover:border-border focus:border-primary text-lg font-black uppercase text-text-primary py-1 focus:outline-none transition-colors"
             />
           </div>
 
           {/* Inline Select Fields (Priority + Assignee) */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             {/* Priority Selector */}
             <div>
               <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
@@ -332,26 +448,35 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               </select>
             </div>
 
-            {/* Assignee Selector */}
+            {/* Assignee Multi-Select */}
             <div>
               <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
-                Assignee {!canAssign && <span className="text-text-faint">(read-only)</span>}
+                Assignees {!canAssign && <span className="text-text-faint">(read-only)</span>}
               </label>
-              <select
-                value={assigneeId || 'unassigned'}
-                onChange={handleAssigneeChange}
-                disabled={!canAssign}
-                className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="unassigned">UNASSIGNED</option>
+              <div className="border border-border rounded-sm max-h-40 overflow-y-auto bg-input">
                 {projectMembers
                   .filter(member => member && member.name != null)
                   .map(member => (
-                    <option key={member.id} value={member.id}>
-                      {member.name.toUpperCase()} {member.role === 'head' ? '(HEAD)' : ''}
-                    </option>
+                    <label key={member.id} className="flex items-center space-x-2 px-3 py-1.5 hover:bg-surface-hover cursor-pointer border-b border-border-subtle last:border-b-0">
+                      <input
+                        type="checkbox"
+                        checked={assigneeIds.includes(member.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssigneeIds([...assigneeIds, member.id]);
+                          } else {
+                            setAssigneeIds(assigneeIds.filter(id => id !== member.id));
+                          }
+                        }}
+                        disabled={!canAssign}
+                        className="rounded-xs text-primary focus:ring-0"
+                      />
+                      <span className="text-xs font-bold text-text-secondary">
+                        {member.name} {member.role === 'head' ? '(HEAD)' : ''}
+                      </span>
+                    </label>
                   ))}
-              </select>
+              </div>
             </div>
           </div>
 
@@ -377,7 +502,6 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              onBlur={handleDescBlur}
               placeholder="ENTER WORK DESCRIPTION OR REQUIREMENTS..."
               className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none leading-relaxed"
             />
@@ -446,7 +570,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               Tags / Labels
             </label>
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {task.labels.map((lbl) => (
+              {labels.map((lbl) => (
                 <span
                   key={lbl}
                   className="bg-tag border border-tag-border text-tag-text font-mono text-[9px] uppercase tracking-wider px-2 py-1 rounded-sm flex items-center space-x-1"

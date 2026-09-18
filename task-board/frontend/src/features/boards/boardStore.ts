@@ -31,7 +31,7 @@ interface BoardState {
       description?: string;
       columnId: string;
       priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-      assigneeId?: string;
+      assigneeIds?: string[];
       labels?: string[];
       dueDate?: string;
     }
@@ -42,7 +42,7 @@ interface BoardState {
       title?: string;
       description?: string;
       priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-      assigneeId?: string | null;
+      assigneeIds?: string[];
       labels?: string[];
       dueDate?: string | null;
       expectedVersion: number;

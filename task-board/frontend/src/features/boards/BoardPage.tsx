@@ -20,7 +20,12 @@ import { BoardColumn } from './BoardColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDrawer } from './TaskDrawer';
 import { TaskWorkspaceModal } from './TaskWorkspaceModal';
-import type { Task, Comment } from '../../schemas';
+import { TaskListView } from './TaskListView';
+import { ManageColumnsModal } from './ManageColumnsModal';
+import { KanbanFeatureGuide } from './KanbanFeatureGuide';
+import { CompletedTasksDrawer } from './CompletedTasksDrawer';
+import type { Task, Comment, BoardColumn as ColumnType } from '../../schemas';
+import { Search, Frown, SlidersHorizontal, LayoutGrid, List, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 export const BoardPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
@@ -57,8 +62,18 @@ export const BoardPage: React.FC = () => {
   useEffect(() => {
     selectedTaskIdRef.current = selectedTaskId;
   }, [selectedTaskId]);
-  const [newColName, setNewColName] = useState('');
-  const [isAddingCol, setIsAddingCol] = useState(false);
+
+  // New Screenshot Control States
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'title' | 'createdAt'>('dueDate');
+  const [hiddenColumnIds, setHiddenColumnIds] = useState<string[]>([]);
+  const [isManageColumnsOpen, setIsManageColumnsOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Completed Tasks Drawer state
+  const [isAllTasksDrawerOpen, setIsAllTasksDrawerOpen] = useState(false);
+  const [allTasksColumn, setAllTasksColumn] = useState<ColumnType | null>(null);
+  const [allTasksList, setAllTasksList] = useState<Task[]>([]);
 
   // Search & Filtering States
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +93,8 @@ export const BoardPage: React.FC = () => {
     setSelectedTag('All');
     setSelectedProject('All');
     setIsFilterDropdownOpen(false);
+    setHiddenColumnIds([]);
+    setCurrentPage(1);
   }, [boardId]);
 
   // Extract unique tags and projects from all current board tasks
@@ -86,10 +103,7 @@ export const BoardPage: React.FC = () => {
     return Array.from(new Set(allTasks.flatMap((t) => t.labels || [])));
   }, [tasksByColumn]);
 
-  const uniqueProjects = React.useMemo(() => {
-    const allTasks = Object.values(tasksByColumn).flat();
-    return Array.from(new Set(allTasks.map((t) => t.projectName).filter(Boolean))) as string[];
-  }, [tasksByColumn]);
+
 
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
@@ -99,18 +113,44 @@ export const BoardPage: React.FC = () => {
     selectedTag !== 'All' ||
     selectedProject !== 'All';
 
+  // Task Priority Rank Map
+  const priorityRank: Record<string, number> = { Urgent: 1, High: 2, Medium: 3, Low: 4 };
+
+  const sortTasksList = React.useCallback(
+    (tasksList: Task[]) => {
+      return [...tasksList].sort((a, b) => {
+        if (sortBy === 'dueDate') {
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        }
+        if (sortBy === 'priority') {
+          const rankA = priorityRank[a.priority] || 99;
+          const rankB = priorityRank[b.priority] || 99;
+          return rankA - rankB;
+        }
+        if (sortBy === 'title') {
+          return a.title.localeCompare(b.title);
+        }
+        if (sortBy === 'createdAt') {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        return 0;
+      });
+    },
+    [sortBy]
+  );
+
   const filteredTasksByColumn = React.useMemo(() => {
     const result: Record<string, Task[]> = {};
-    
+
     Object.keys(tasksByColumn).forEach((colId) => {
-      // If we filtered by a specific column, and this isn't it, make it empty
       if (selectedColumnId !== 'All' && colId !== selectedColumnId) {
         result[colId] = [];
         return;
       }
 
-      result[colId] = (tasksByColumn[colId] || []).filter((task) => {
-        // 1. Search Query Match
+      const rawFiltered = (tasksByColumn[colId] || []).filter((task) => {
         if (searchQuery.trim() !== '') {
           const query = searchQuery.toLowerCase();
           const matchTitle = task.title.toLowerCase().includes(query);
@@ -118,36 +158,36 @@ export const BoardPage: React.FC = () => {
           if (!matchTitle && !matchDesc) return false;
         }
 
-        // 2. Priority Match
         if (selectedPriority !== 'All' && task.priority !== selectedPriority) {
           return false;
         }
 
-        // 3. Assignee Match
         if (selectedAssigneeId === 'unassigned') {
-          if (task.assigneeId !== null && task.assigneeId !== undefined && task.assigneeId !== '' && task.assigneeId !== 'unassigned') {
+          if (
+            task.assignees && task.assignees.length > 0
+          ) {
             return false;
           }
-        } else if (selectedAssigneeId !== 'All' && task.assigneeId !== selectedAssigneeId) {
+        } else if (selectedAssigneeId !== 'All' && !(task.assignees || []).some(a => a.id === selectedAssigneeId)) {
           return false;
         }
 
-        // 4. Tag Match
         if (selectedTag !== 'All' && !(task.labels || []).includes(selectedTag)) {
           return false;
         }
 
-        // 5. Project Match
         if (selectedProject !== 'All' && task.projectName?.toLowerCase() !== selectedProject.toLowerCase()) {
           return false;
         }
 
         return true;
       });
+
+      result[colId] = sortTasksList(rawFiltered);
     });
 
     return result;
-  }, [tasksByColumn, searchQuery, selectedColumnId, selectedPriority, selectedAssigneeId, selectedTag, selectedProject]);
+  }, [tasksByColumn, searchQuery, selectedColumnId, selectedPriority, selectedAssigneeId, selectedTag, selectedProject, sortTasksList]);
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -158,15 +198,28 @@ export const BoardPage: React.FC = () => {
     setSelectedProject('All');
   };
 
-  const totalTasksCount = React.useMemo(() => {
-    return Object.values(tasksByColumn).flat().length;
-  }, [tasksByColumn]);
+
 
   const filteredTasksCount = React.useMemo(() => {
     return Object.values(filteredTasksByColumn).flat().length;
   }, [filteredTasksByColumn]);
 
-  // Configure Sensors: activationConstraint is CRITICAL so clicks on TaskCards trigger onClick instead of dragging
+  const visibleColumns = React.useMemo(() => {
+    return columns.filter((col) => !hiddenColumnIds.includes(col.id));
+  }, [columns, hiddenColumnIds]);
+
+  const handleToggleColumnVisibility = (colId: string) => {
+    setHiddenColumnIds((prev) =>
+      prev.includes(colId) ? prev.filter((id) => id !== colId) : [...prev, colId]
+    );
+  };
+
+  const handleViewAllTasks = (column: ColumnType, tasks: Task[]) => {
+    setAllTasksColumn(column);
+    setAllTasksList(tasks);
+    setIsAllTasksDrawerOpen(true);
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -188,7 +241,6 @@ export const BoardPage: React.FC = () => {
   useEffect(() => {
     if (!boardId || !currentUser) return;
 
-    // Connect socket
     const socket = connectSocket() || getSocket();
 
     const joinRoom = () => {
@@ -197,43 +249,37 @@ export const BoardPage: React.FC = () => {
 
     if (socket?.connected) {
       joinRoom();
+    } else {
+      socket?.once?.('connect', joinRoom);
     }
-    socket?.on?.('connect', joinRoom);
 
-    // Handle incoming socket events
-    const handleTaskCreated = (task: Task) => {
-      if (task.createdBy === currentUser?.id) return;
-      addOrUpdateTaskRealtime(task);
+    const handleTaskUpdated = (data?: { task: Task }) => {
+      if (data?.task) addOrUpdateTaskRealtime(data.task);
     };
 
-    const handleTaskUpdated = (task: Task) => {
-      addOrUpdateTaskRealtime(task);
+    const handleTaskMoved = (data?: { task: Task }) => {
+      if (data?.task) addOrUpdateTaskRealtime(data.task);
     };
 
-    const handleTaskMoved = (task: Task) => {
-      addOrUpdateTaskRealtime(task);
+    const handleTaskDeleted = (data?: { taskId: string }) => {
+      if (data?.taskId) deleteTaskRealtime(data.taskId);
     };
 
-    const handleTaskDeleted = (data: { id: string }) => {
-      deleteTaskRealtime(data.id);
-      if (selectedTaskIdRef.current === data.id) {
-        setSelectedTaskId(null);
+    const handlePresence = (data?: { users: any[] } | any[]) => {
+      const usersList = Array.isArray(data) ? data : data?.users;
+      if (usersList) setActiveUsers(usersList);
+    };
+
+    const handleBoardUpdated = (data?: { boardId: string }) => {
+      if (!data || data.boardId === boardId) fetchColumnsAndTasks(boardId);
+    };
+
+    const handleCommentCreated = (data?: { taskId: string; comment: Comment }) => {
+      if (data?.taskId && data?.comment) {
+        addCommentRealtime(data.taskId, data.comment);
       }
     };
 
-    const handlePresence = (users: Array<{ id: string; name: string }>) => {
-      setActiveUsers(users);
-    };
-
-    const handleBoardUpdated = () => {
-      fetchColumnsAndTasks(boardId);
-    };
-
-    const handleCommentCreated = (comment: Comment) => {
-      addCommentRealtime(comment.taskId, comment);
-    };
-
-    socket?.on?.('task:created', handleTaskCreated);
     socket?.on?.('task:updated', handleTaskUpdated);
     socket?.on?.('task:moved', handleTaskMoved);
     socket?.on?.('task:deleted', handleTaskDeleted);
@@ -241,11 +287,8 @@ export const BoardPage: React.FC = () => {
     socket?.on?.('board:updated', handleBoardUpdated);
     socket?.on?.('comment:created', handleCommentCreated);
 
-    // Cleanup on unmount/re-effect
     return () => {
       socket?.emit?.('leaveBoard', { boardId });
-      socket?.off?.('connect', joinRoom);
-      socket?.off?.('task:created', handleTaskCreated);
       socket?.off?.('task:updated', handleTaskUpdated);
       socket?.off?.('task:moved', handleTaskMoved);
       socket?.off?.('task:deleted', handleTaskDeleted);
@@ -283,7 +326,6 @@ export const BoardPage: React.FC = () => {
     const fromColId = findColumnOfTask(taskId);
     if (!fromColId) return;
 
-    // Check if dragged over another column directly or a task card inside a column
     let toColId = overId;
     let targetIndex = 0;
 
@@ -293,41 +335,27 @@ export const BoardPage: React.FC = () => {
       const targetTasks = tasksByColumn[toColId] || [];
       targetIndex = targetTasks.findIndex((t) => t.id === overId);
     } else {
-      // Over the column droppable directly
       const targetTasks = tasksByColumn[toColId] || [];
       targetIndex = targetTasks.length;
     }
 
-    // Retrieve active task object to check expected version
     const activeTasksList = tasksByColumn[fromColId] || [];
     const task = activeTasksList.find((t) => t.id === taskId);
     if (!task) return;
 
-    // If position or column changed
     if (fromColId !== toColId || activeTasksList.findIndex((t) => t.id === taskId) !== targetIndex) {
-      // Adjust targetIndex boundings
       const currentIdx = activeTasksList.findIndex((t) => t.id === taskId);
       let finalIndex = targetIndex;
       if (fromColId === toColId && currentIdx < targetIndex) {
-        // compensate for card removal in same column
         finalIndex = Math.max(0, targetIndex - 1);
       }
 
-      // 1. Instantly trigger optimistic frontend movement
       moveTaskOptimistic(taskId, fromColId, toColId, finalIndex);
-
-      // 2. Persist update on backend database
       await moveTaskDb(taskId, toColId, finalIndex, task.version);
     }
   };
 
-  const handleAddColumn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newColName.trim() || !boardId) return;
-    await createColumn(boardId, newColName.trim());
-    setNewColName('');
-    setIsAddingCol(false);
-  };
+
 
   if (isLoading && !activeBoard) {
     return (
@@ -350,14 +378,12 @@ export const BoardPage: React.FC = () => {
     );
   }
 
-  // Find dragged task details for overlay
   const activeDraggedTask = activeTaskId
     ? Object.values(tasksByColumn)
         .flat()
         .find((t) => t.id === activeTaskId)
     : null;
 
-  // Track task selected for drawer
   const activeDrawerTask = selectedTaskId
     ? Object.values(tasksByColumn)
         .flat()
@@ -365,25 +391,27 @@ export const BoardPage: React.FC = () => {
     : null;
 
   return (
-    <div className="space-y-8 flex flex-col h-full">
-      {/* Board Header details */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-6">
+    <div className="space-y-6 flex flex-col h-full font-sans">
+      {/* Top Header: Breadcrumbs, Board Title & Column Management Actions */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div>
-          <span className="text-[9px] uppercase font-mono tracking-widest text-text-muted block mb-1">
-            Kanban Board
-          </span>
-          <h1 className="text-3xl font-black uppercase tracking-tight text-text-primary leading-none">
-            {activeBoard.name}
-          </h1>
-          {activeBoard.description && (
-            <p className="mt-1.5 text-xs text-text-muted font-medium">
-              {activeBoard.description}
-            </p>
-          )}
+          <div className="flex items-center space-x-2 text-[10px] uppercase font-mono tracking-widest text-text-muted mb-1">
+            <span>PROJECT</span>
+            <span>/</span>
+            <span className="text-primary font-bold">PRODUCT</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-text-primary leading-none">
+              {activeBoard.name}
+            </h1>
+            <span className="text-[9px] font-mono font-bold uppercase tracking-wider bg-primary-light text-primary px-2 py-0.5 rounded-sm border border-primary/20">
+              KANBAN BOARD
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-4 w-full md:w-auto justify-end">
-          {/* Active Users Avatars */}
+        <div className="flex flex-wrap items-center space-x-3 w-full md:w-auto justify-end">
+          {/* Active Members Online Indicator */}
           {activeUsers.length > 0 && (
             <div className="flex items-center -space-x-1.5 overflow-hidden mr-2">
               {activeUsers.map((user) => {
@@ -399,7 +427,7 @@ export const BoardPage: React.FC = () => {
                     key={user.id}
                     title={`${user.name}${isMe ? ' (You)' : ''}`}
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold font-mono border border-border text-white select-none ${
-                      isMe ? 'bg-primary' : 'bg-surface-active'
+                      isMe ? 'bg-primary' : 'bg-surface-active text-text-secondary'
                     }`}
                   >
                     {initials}
@@ -409,77 +437,59 @@ export const BoardPage: React.FC = () => {
             </div>
           )}
 
-          {/* Add Column button */}
-          {isAddingCol ? (
-            <form onSubmit={handleAddColumn} className="flex space-x-2 w-full md:w-auto">
-              <input
-                type="text"
-                placeholder="COLUMN NAME..."
-                value={newColName}
-                onChange={(e) => setNewColName(e.target.value)}
-                className="bg-input border-2 border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary w-full md:w-48"
-                autoFocus
-              />
-              <button
-                type="submit"
-                className="bg-primary hover:bg-primary-hover text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-sm"
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsAddingCol(false)}
-                className="bg-surface-active hover:bg-surface-hover text-text-muted text-[10px] font-bold uppercase tracking-wider px-4 py-2 border border-border rounded-sm"
-              >
-                X
-              </button>
-            </form>
-          ) : (
-            canManageColumns && (
-              <button
-                onClick={() => setIsAddingCol(true)}
-                className="bg-surface-hover border-2 border-border hover:border-border-strong text-text-primary font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-sm transition-colors flex items-center space-x-1.5"
-              >
-                <span>+</span>
-                <span>New Column</span>
-              </button>
-            )
+          {/* Manage Columns Button */}
+          <button
+            onClick={() => setIsManageColumnsOpen(true)}
+            className="border border-border bg-surface hover:bg-surface-hover text-text-primary text-xs font-mono font-bold uppercase tracking-wider px-3 py-2 rounded-sm transition-colors flex items-center space-x-1.5"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-text-muted" />
+            <span className="hidden sm:inline">Manage Columns</span>
+          </button>
+
+          {/* Add Column Button */}
+          {canManageColumns && (
+            <button
+              onClick={() => setIsManageColumnsOpen(true)}
+              className="bg-primary hover:bg-primary-hover text-white text-xs font-mono font-bold uppercase tracking-wider px-3.5 py-2 rounded-sm transition-colors flex items-center space-x-1 shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Column</span>
+            </button>
           )}
         </div>
       </div>
 
-      {/* Search and Filters Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border-t border-b border-border-subtle py-4 mb-2">
-        <div className="flex items-center space-x-3 w-full sm:w-auto">
-          {/* Search Input */}
-          <div className="relative flex-1 sm:w-64">
+      {/* Secondary Controls Bar: Search & Filter, View Toggle, Sort & Pagination */}
+      <div className="bg-surface-hover/60 border border-border p-3.5 rounded-sm flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between font-mono text-xs">
+        {/* Point 1: Search & Filter */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Search Box */}
+          <div className="relative flex-1 sm:w-60">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <Search className="w-3.5 h-3.5" />
             </span>
             <input
               type="text"
               placeholder="SEARCH TASKS..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-input border border-border-input hover:border-border-strong focus:border-primary text-xs font-mono py-2 pl-9 pr-4 text-text-primary focus:outline-none rounded-sm transition-colors uppercase"
+              className="w-full bg-input border border-border hover:border-primary/50 focus:border-primary text-xs font-mono py-1.5 pl-8 pr-3 text-text-primary focus:outline-none rounded-sm transition-colors"
             />
           </div>
 
-          {/* Filter dropdown toggle button */}
+          {/* Filters Dropdown Trigger */}
           <div className="relative">
             <button
               onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-              className={`border text-xs font-mono uppercase tracking-wider px-4 py-2 rounded-sm transition-colors flex items-center space-x-2 font-bold ${
+              className={`border text-xs font-mono uppercase tracking-wider px-3.5 py-1.5 rounded-sm transition-colors flex items-center space-x-2 font-bold ${
                 hasActiveFilters
-                  ? 'border-primary/30 bg-primary-light text-primary hover:bg-primary/15'
-                  : 'border-border bg-surface-hover text-text-muted hover:text-text-primary hover:border-border-strong'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-surface text-text-secondary hover:text-text-primary'
               }`}
             >
               <span>Filters</span>
               {hasActiveFilters && (
-                <span className="bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono">
+                <span className="bg-primary text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
                   {[
                     searchQuery !== '',
                     selectedColumnId !== 'All',
@@ -494,7 +504,7 @@ export const BoardPage: React.FC = () => {
 
             {/* Filter Dropdown Popover */}
             {isFilterDropdownOpen && (
-              <div className="absolute left-0 sm:left-auto right-0 sm:right-auto mt-2 w-72 max-w-[calc(100vw-2.5rem)] bg-surface-elevated border-2 border-border p-4 rounded-sm shadow-theme-xl z-35 space-y-4 font-sans text-left">
+              <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-2.5rem)] bg-surface-elevated border-2 border-border p-4 rounded-sm shadow-theme-xl z-35 space-y-4 font-sans text-left">
                 <div className="flex justify-between items-center border-b border-border pb-2">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-primary">
                     FILTERS.
@@ -509,7 +519,6 @@ export const BoardPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Status / Column filter */}
                 <div className="space-y-1">
                   <label htmlFor="filter-column" className="block text-[9px] uppercase font-mono tracking-wider text-text-muted">
                     Status / Column
@@ -518,7 +527,7 @@ export const BoardPage: React.FC = () => {
                     id="filter-column"
                     value={selectedColumnId}
                     onChange={(e) => setSelectedColumnId(e.target.value)}
-                    className="w-full bg-input border border-border-input text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+                    className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
                   >
                     <option value="All">All Columns</option>
                     {columns.map((col) => (
@@ -529,7 +538,6 @@ export const BoardPage: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Priority filter */}
                 <div className="space-y-1">
                   <label htmlFor="filter-priority" className="block text-[9px] uppercase font-mono tracking-wider text-text-muted">
                     Priority
@@ -538,7 +546,7 @@ export const BoardPage: React.FC = () => {
                     id="filter-priority"
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
-                    className="w-full bg-input border border-border-input text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+                    className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
                   >
                     <option value="All">All Priorities</option>
                     <option value="Low">Low</option>
@@ -548,7 +556,6 @@ export const BoardPage: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Assignee filter */}
                 <div className="space-y-1">
                   <label htmlFor="filter-assignee" className="block text-[9px] uppercase font-mono tracking-wider text-text-muted">
                     Assignee
@@ -557,7 +564,7 @@ export const BoardPage: React.FC = () => {
                     id="filter-assignee"
                     value={selectedAssigneeId}
                     onChange={(e) => setSelectedAssigneeId(e.target.value)}
-                    className="w-full bg-input border border-border-input text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+                    className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
                   >
                     <option value="All">All Assignees</option>
                     {members
@@ -570,7 +577,6 @@ export const BoardPage: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Tags filter */}
                 <div className="space-y-1">
                   <label htmlFor="filter-tag" className="block text-[9px] uppercase font-mono tracking-wider text-text-muted">
                     Tag / Label
@@ -579,7 +585,7 @@ export const BoardPage: React.FC = () => {
                     id="filter-tag"
                     value={selectedTag}
                     onChange={(e) => setSelectedTag(e.target.value)}
-                    className="w-full bg-input border border-border-input text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+                    className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
                   >
                     <option value="All">All Tags</option>
                     {uniqueTags.map((tag) => (
@@ -589,115 +595,148 @@ export const BoardPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
-
-                {/* Project filter */}
-                {uniqueProjects.length > 0 && (
-                  <div className="space-y-1">
-                    <label htmlFor="filter-project" className="block text-[9px] uppercase font-mono tracking-wider text-text-muted">
-                      Project
-                    </label>
-                    <select
-                      id="filter-project"
-                      value={selectedProject}
-                      onChange={(e) => setSelectedProject(e.target.value)}
-                      className="w-full bg-input border border-border-input text-xs font-bold text-text-secondary py-1.5 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
-                    >
-                      <option value="All">All Projects</option>
-                      {uniqueProjects.map((pName) => (
-                        <option key={pName} value={pName}>
-                          📁 {pName.toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Count Indicator */}
-        {hasActiveFilters && (
-          <div className="text-[10px] font-mono text-text-muted flex items-center space-x-2">
-            <span>SHOWING {filteredTasksCount} OF {totalTasksCount} TASKS</span>
-            <span className="text-primary animate-pulse font-bold">[FILTERED VIEW]</span>
+        {/* Right Section: Point 2 View Toggle + Point 3 Sort & Pagination */}
+        <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-between lg:justify-end">
+          {/* Point 2: View Toggle Pills */}
+          <div className="flex items-center space-x-2 border border-border bg-surface p-0.5 rounded-sm">
+            <span className="text-[10px] text-text-muted font-bold px-2">View:</span>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`px-3 py-1 text-xs font-bold rounded-xs transition-colors flex items-center space-x-1 ${
+                viewMode === 'kanban'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              <LayoutGrid className="w-3 h-3" />
+              <span>Kanban</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1 text-xs font-bold rounded-xs transition-colors flex items-center space-x-1 ${
+                viewMode === 'list'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              <List className="w-3 h-3" />
+              <span>List</span>
+            </button>
           </div>
-        )}
+
+          {/* Point 3: Sort by Dropdown */}
+          <div className="flex items-center space-x-2">
+            <span className="text-text-muted text-[10px] uppercase tracking-wider">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-input border border-border text-xs font-bold text-text-secondary py-1 px-2.5 rounded-sm focus:outline-none focus:border-primary uppercase"
+            >
+              <option value="dueDate">Due Date</option>
+              <option value="priority">Priority</option>
+              <option value="title">Title</option>
+              <option value="createdAt">Created Date</option>
+            </select>
+          </div>
+
+          {/* Point 3: Total tasks indicator & Pagination */}
+          <div className="flex items-center space-x-3 border-l border-border pl-3">
+            <span className="text-[10px] font-bold text-text-secondary uppercase">
+              Total {filteredTasksCount} tasks
+            </span>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center space-x-1 text-xs font-mono">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-1 text-text-muted hover:text-text-primary border border-border rounded-sm disabled:opacity-40"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="px-2 py-0.5 bg-primary text-white font-bold rounded-sm text-[10px]">
+                {currentPage}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="p-1 text-text-muted hover:text-text-primary border border-border rounded-sm"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Active Filter Pills */}
+      {/* Active Filter Pills Bar */}
       {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          <span className="text-[9px] font-mono text-text-faint uppercase tracking-wider">
-            Active Filters:
-          </span>
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+          <span className="text-[9px] text-text-faint uppercase tracking-wider">Active Filters:</span>
           {searchQuery !== '' && (
-            <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1.5">
+            <span className="bg-surface-active border border-border text-text-secondary text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1">
               <span>Query: "{searchQuery}"</span>
-              <button onClick={() => setSearchQuery('')} className="text-text-muted hover:text-primary font-bold font-mono">&times;</button>
+              <button onClick={() => setSearchQuery('')} className="text-text-muted hover:text-primary font-bold">&times;</button>
             </span>
           )}
           {selectedColumnId !== 'All' && (
-            <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1.5">
-              <span>Column: {columns.find(c => c.id === selectedColumnId)?.name}</span>
-              <button onClick={() => setSelectedColumnId('All')} className="text-text-muted hover:text-primary font-bold font-mono">&times;</button>
+            <span className="bg-surface-active border border-border text-text-secondary text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1">
+              <span>Column: {columns.find((c) => c.id === selectedColumnId)?.name}</span>
+              <button onClick={() => setSelectedColumnId('All')} className="text-text-muted hover:text-primary font-bold">&times;</button>
             </span>
           )}
           {selectedPriority !== 'All' && (
-            <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1.5">
+            <span className="bg-surface-active border border-border text-text-secondary text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1">
               <span>Priority: {selectedPriority}</span>
-              <button onClick={() => setSelectedPriority('All')} className="text-text-muted hover:text-primary font-bold font-mono">&times;</button>
+              <button onClick={() => setSelectedPriority('All')} className="text-text-muted hover:text-primary font-bold">&times;</button>
             </span>
           )}
           {selectedAssigneeId !== 'All' && (
-            <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1.5">
-              <span>Assignee: {members.find(m => m.id === selectedAssigneeId)?.name}</span>
-              <button onClick={() => setSelectedAssigneeId('All')} className="text-text-muted hover:text-primary font-bold font-mono">&times;</button>
-            </span>
-          )}
-          {selectedTag !== 'All' && (
-            <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1.5">
-              <span>Tag: {selectedTag}</span>
-              <button onClick={() => setSelectedTag('All')} className="text-text-muted hover:text-primary font-bold font-mono">&times;</button>
+            <span className="bg-surface-active border border-border text-text-secondary text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm flex items-center space-x-1">
+              <span>Assignee: {members.find((m) => m.id === selectedAssigneeId)?.name}</span>
+              <button onClick={() => setSelectedAssigneeId('All')} className="text-text-muted hover:text-primary font-bold">&times;</button>
             </span>
           )}
           <button
             onClick={handleClearFilters}
-            className="text-[9px] font-mono text-primary hover:text-primary-hover font-bold uppercase transition-colors"
+            className="text-[9px] text-primary hover:text-primary-hover font-bold uppercase transition-colors"
           >
             [Clear All]
           </button>
         </div>
       )}
 
-      {hasActiveFilters && filteredTasksCount === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-border bg-surface rounded-sm max-w-md mx-auto my-12">
-          <svg className="w-12 h-12 text-text-faint mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="text-sm font-bold uppercase text-text-primary tracking-wider mb-2">
-            No Tasks Found
-          </h3>
-          <p className="text-xs text-text-muted font-medium mb-6">
-            Try changing your search query or adjusting your filters.
-          </p>
+      {/* Main Content Area: ListView or Kanban Board */}
+      {viewMode === 'list' ? (
+        <div className="flex-1 overflow-x-auto">
+          <TaskListView
+            tasks={Object.values(filteredTasksByColumn).flat()}
+            columns={columns}
+            onOpenTask={(task) => setSelectedTaskId(task.id)}
+          />
+        </div>
+      ) : hasActiveFilters && filteredTasksCount === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-border bg-surface rounded-sm max-w-md mx-auto my-8">
+          <Frown className="w-12 h-12 text-text-faint mb-4" />
+          <h3 className="text-sm font-bold uppercase text-text-primary tracking-wider mb-2">No Tasks Found</h3>
+          <p className="text-xs text-text-muted font-medium mb-6">Try changing your search query or adjusting your filters.</p>
           <button
             onClick={handleClearFilters}
-            className="bg-surface-active hover:bg-surface-hover text-text-muted text-xs font-mono uppercase tracking-wider px-6 py-3 border border-border rounded-sm transition-colors"
+            className="bg-surface-active hover:bg-surface-hover text-text-muted text-xs font-mono uppercase tracking-wider px-6 py-2.5 border border-border rounded-sm transition-colors"
           >
             Clear Filters
           </button>
         </div>
       ) : (
-        /* Columns Container Dnd Wrapper */
+        /* Kanban Board Columns Wrapper */
         <div className="flex-1 overflow-x-auto pb-4">
-          <DndContext
-            sensors={sensors}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="flex space-x-4 items-start min-h-[500px]">
-              {columns.map((col) => (
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div className="flex space-x-4 items-start min-h-[400px]">
+              {visibleColumns.map((col) => (
                 <BoardColumn
                   key={col.id}
                   column={col}
@@ -708,18 +747,32 @@ export const BoardPage: React.FC = () => {
                   onDeleteColumn={() => deleteColumn(activeBoard.id, col.id)}
                   onRenameColumn={(name) => renameColumn(activeBoard.id, col.id, name)}
                   onTaskClick={(task) => setSelectedTaskId(task.id)}
+                  onViewAllTasks={handleViewAllTasks}
                 />
               ))}
             </div>
 
             <DragOverlay>
-              {activeDraggedTask ? (
-                <TaskCard task={activeDraggedTask} />
-              ) : null}
+              {activeDraggedTask ? <TaskCard task={activeDraggedTask} /> : null}
             </DragOverlay>
           </DndContext>
         </div>
       )}
+
+      {/* Bottom Explanatory Feature Cards (Points 1-5 in user screenshot) */}
+      <KanbanFeatureGuide />
+
+      {/* Manage Columns Popover / Modal */}
+      <ManageColumnsModal
+        isOpen={isManageColumnsOpen}
+        onClose={() => setIsManageColumnsOpen(false)}
+        columns={columns}
+        hiddenColumnIds={hiddenColumnIds}
+        onToggleVisibility={handleToggleColumnVisibility}
+        onAddColumn={(name) => createColumn(activeBoard.id, name)}
+        onDeleteColumn={(id) => deleteColumn(activeBoard.id, id)}
+        canManageColumns={canManageColumns}
+      />
 
       {/* Side Details Drawer */}
       {!isWorkspaceModalOpen && (
@@ -739,6 +792,20 @@ export const BoardPage: React.FC = () => {
           setSelectedTaskId(null);
         }}
         onMinimizeToDrawer={() => setIsWorkspaceModalOpen(false)}
+      />
+
+      {/* All Tasks Drawer */}
+      <CompletedTasksDrawer
+        isOpen={isAllTasksDrawerOpen}
+        column={allTasksColumn}
+        tasks={allTasksList}
+        onClose={() => {
+          setIsAllTasksDrawerOpen(false);
+          setAllTasksColumn(null);
+          setAllTasksList([]);
+        }}
+        onTaskClick={(task) => setSelectedTaskId(task.id)}
+        members={members}
       />
     </div>
   );

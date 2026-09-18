@@ -7,15 +7,15 @@ generator client {
 }
 
 model User {
-  id                   String            @id @default(uuid())
+  id                   String             @id @default(uuid())
   name                 String
-  email                String            @unique
+  email                String             @unique
   passwordHash         String
-  avatarUrl            String            @default("")
+  avatarUrl            String             @default("")
   refreshTokenJtis     String[]
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  workspacesOwned      Workspace[]       @relation("WorkspaceOwner")
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  workspacesOwned      Workspace[]        @relation("WorkspaceOwner")
   workspaceMemberships WorkspaceMember[]
   projectMemberships   ProjectMember[]
   comments             Comment[]
@@ -23,6 +23,8 @@ model User {
   activities           Activity[]
   notificationsReceived Notification[]    @relation("RecipientUser")
   notificationsSent     Notification[]    @relation("SenderUser")
+  invitesSent          WorkspaceInvite[]  @relation("InviteSender")
+  assignedTasks        TaskAssignee[]
 }
 
 model Workspace {
@@ -34,6 +36,7 @@ model Workspace {
   members               WorkspaceMember[]
   projects              Project[]
   activities            Activity[]
+  invites               WorkspaceInvite[]
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 }
@@ -49,6 +52,23 @@ model WorkspaceMember {
   updatedAt   DateTime  @updatedAt
 
   @@unique([workspaceId, userId])
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email       String
+  token       String    @unique
+  role        String    @default("member")
+  invitedById String
+  invitedBy   User      @relation("InviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([token])
+  @@index([workspaceId, email])
 }
 
 model ProjectMember {
@@ -114,7 +134,6 @@ model Task {
   column          BoardColumn     @relation(fields: [columnId], references: [id], onDelete: Cascade)
   position        Int
   priority        String          @default("Medium") // "Low", "Medium", "High", "Urgent"
-  assigneeId      String?
   dependsOnTaskId String?
   createdBy       String
   labels          String[]
@@ -124,14 +143,27 @@ model Task {
   comments        Comment[]
   chatMessages    TaskChatMessage[]
   checklists      ChecklistItem[]
+  assignees       TaskAssignee[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
   @@index([boardId])
   @@index([columnId])
   @@index([projectId])
-  @@index([assigneeId])
   @@index([dependsOnTaskId])
+}
+
+model TaskAssignee {
+  id         String   @id @default(uuid())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
 }
 
 model ChecklistItem {

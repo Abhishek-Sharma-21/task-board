@@ -15,6 +15,7 @@ import activityRouter from './routes/activity.routes.js';
 import projectMemberRouter from './routes/projectMember.routes.js';
 import analyticsRouter from './routes/analytics.routes.js';
 import taskChatRouter from './routes/taskChat.routes.js';
+import inviteRouter from './routes/invite.routes.js';
 import { errorHandler, notFound } from './utils/errors.js';
 
 export function createApp(): express.Express {
@@ -91,6 +92,7 @@ export function createApp(): express.Express {
   app.use('/api', projectMemberRouter);
   app.use('/api', analyticsRouter);
   app.use('/api', taskChatRouter);
+  app.use('/api', inviteRouter);
 
   app.use(notFound);
   app.use(errorHandler);

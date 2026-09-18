@@ -90,22 +90,21 @@ export async function getNotificationsForUser(userId: string): Promise<any[]> {
   }));
 }
 
-export async function markAsRead(userId: string, notificationId: string): Promise<void> {
+export async function markAsRead(userId: string, notificationId: string): Promise<string[]> {
   if (!isValidId(notificationId) || !isValidId(userId)) {
-    return;
+    return [];
   }
-  await prisma.notification.updateMany({
+  const deleted = await prisma.notification.deleteMany({
     where: { id: notificationId, userId },
-    data: { read: true },
   });
+  return deleted.count > 0 ? [notificationId] : [];
 }
 
 export async function markAllAsRead(userId: string): Promise<void> {
   if (!isValidId(userId)) {
     return;
   }
-  await prisma.notification.updateMany({
-    where: { userId, read: false },
-    data: { read: true },
+  await prisma.notification.deleteMany({
+    where: { userId },
   });
 }

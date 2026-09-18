@@ -11,6 +11,8 @@ import { Spinner } from '../components/Spinner';
 import { OfflineSyncBanner } from '../components/common/OfflineSyncBanner';
 import { ToastContainer } from '../components/common/ToastContainer';
 import { NotificationDropdown } from '../components/NotificationDropdown';
+import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, ChevronRight, Sun, Moon, Folder, LogOut, Users, Activity, Menu } from 'lucide-react';
+import { WorkspaceMembersModal } from '../components/WorkspaceMembersModal';
 
 export const AppLayout: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -26,6 +28,8 @@ export const AppLayout: React.FC = () => {
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
   const [workspaceNameInput, setWorkspaceNameInput] = useState('');
   const [projectNameInput, setProjectNameInput] = useState('');
@@ -154,6 +158,7 @@ export const AppLayout: React.FC = () => {
         setIsBoardModalOpen(false);
         setIsTeamModalOpen(false);
         setIsNotificationOpen(false);
+        setIsMembersModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -421,51 +426,107 @@ export const AppLayout: React.FC = () => {
             </div>
           )}
 
-          {/* Nav Items */}
-          <nav className="space-y-1.5 pt-4 border-t border-border-subtle">
+          {/* Primary Navigation */}
+          <nav className="space-y-1 pt-4 border-t border-border-subtle">
             <button
               onClick={() => navigate('/')}
-              className="w-full flex items-center space-x-3 px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-primary transition-colors"
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+                location.pathname === '/' 
+                  ? 'bg-surface-active border border-border text-text-primary' 
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+              }`}
             >
-              <span>Home Overview</span>
+              <Home className="w-4 h-4" />
+              <span>Home</span>
             </button>
             <button
-              onClick={() => {
-                const wsId = activeWorkspace?.id || workspaces[0]?.id;
-                if (wsId) navigate(`/workspaces/${wsId}/settings`);
-              }}
-              className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+              onClick={() => navigate('/my-work')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+                location.pathname === '/my-work' 
+                  ? 'bg-surface-active border border-border text-text-primary' 
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+              }`}
             >
-              <span>Workspace Settings</span>
-              <span className="text-[9px] font-mono bg-primary-light text-primary px-1 py-0.5 rounded-sm font-bold">CONFIG</span>
+              <LayoutGrid className="w-4 h-4" />
+              <span>My Work</span>
             </button>
             <button
-              onClick={() => setIsTeamModalOpen(true)}
-              className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+              onClick={() => navigate('/calendar')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+                location.pathname === '/calendar' 
+                  ? 'bg-surface-active border border-border text-text-primary' 
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+              }`}
             >
-              <span>Team Settings</span>
-              <span className="text-[9px] font-mono bg-surface text-text-muted px-1 py-0.5 rounded-sm">MEMBERS</span>
+              <Calendar className="w-4 h-4" />
+              <span>Calendar</span>
             </button>
             <button
-              onClick={() => {
-                const wsId = activeWorkspace?.id || workspaces[0]?.id;
-                if (wsId) navigate(`/workspaces/${wsId}/activity`);
-              }}
-              className="w-full flex items-center justify-between px-3 py-2 bg-surface-hover border border-border rounded-sm text-sm font-bold text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+                isNotificationOpen 
+                  ? 'bg-surface-active border border-border text-text-primary' 
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+              }`}
             >
-              <span>Activity History</span>
-              <span className="text-[9px] font-mono bg-surface text-text-muted px-1 py-0.5 rounded-sm">LOG</span>
+              <Bell className="w-4 h-4" />
+              <span>Notifications</span>
+              {unreadCount > 0 && (
+                <span className="ml-auto text-[9px] font-mono bg-primary text-white px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+              )}
             </button>
           </nav>
-          {/* Workflow info link */}
-          <div className="pt-3 mt-1 border-t border-border-subtle">
+
+          {/* Settings & Admin - Collapsible */}
+          <div className="pt-4 border-t border-border-subtle">
             <button
-              onClick={() => navigate('/workflow')}
-              className="w-full flex items-center justify-between px-2 py-1.5 rounded-sm text-[11px] font-mono text-primary/60 hover:text-primary transition-colors"
+              onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-bold text-text-muted hover:text-text-secondary transition-colors"
             >
-              <span>How it works</span>
-              <span className="text-[9px] tracking-wider">&rarr;</span>
+              <div className="flex items-center space-x-3">
+                <Settings className="w-4 h-4" />
+                <span>Settings & Admin</span>
+              </div>
+              {isSettingsExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
+            {isSettingsExpanded && (
+              <div className="space-y-1 mt-1">
+                <button
+                  onClick={() => {
+                    const wsId = activeWorkspace?.id || workspaces[0]?.id;
+                    if (wsId) navigate(`/workspaces/${wsId}/settings`);
+                  }}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Workspace Settings</span>
+                </button>
+                <button
+                  onClick={() => setIsTeamModalOpen(true)}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Team Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const wsId = activeWorkspace?.id || workspaces[0]?.id;
+                    if (wsId) navigate(`/workspaces/${wsId}/activity`);
+                  }}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Activity History</span>
+                </button>
+                <button
+                  onClick={() => navigate('/workflow')}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-primary/60 hover:text-primary rounded-sm transition-colors"
+                >
+                  <Folder className="w-3.5 h-3.5" />
+                  <span>How it works</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -481,7 +542,7 @@ export const AppLayout: React.FC = () => {
             onClick={toggleTheme}
             className="flex items-center space-x-2 text-xs font-mono text-text-muted hover:text-primary transition-colors w-full text-left"
           >
-            <span>{theme === 'dark' ? '☀' : '☽'}</span>
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
 
@@ -490,7 +551,7 @@ export const AppLayout: React.FC = () => {
             disabled={isLoggingOut}
             className="flex items-center space-x-2 text-xs font-mono text-text-muted hover:text-primary transition-colors w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoggingOut ? <Spinner /> : <span>[&rarr;]</span>}
+            {isLoggingOut ? <Spinner /> : <LogOut className="w-4 h-4" />}
             <span>{isLoggingOut ? 'Logging out...' : 'Log out'}</span>
           </button>
         </div>
@@ -507,9 +568,7 @@ export const AppLayout: React.FC = () => {
               className="p-1.5 text-text-muted hover:text-text-primary border border-border rounded-sm md:hidden shrink-0"
               aria-label="Open Navigation Menu"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <Menu className="w-5 h-5" />
             </button>
             <div className="truncate">
               <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-widest text-text-faint block leading-tight">
@@ -524,6 +583,16 @@ export const AppLayout: React.FC = () => {
           {/* Header Actions Panel */}
           {user && (
             <div className="flex items-center space-x-3 sm:space-x-6 shrink-0">
+              {/* Members Button */}
+              <button
+                onClick={() => setIsMembersModalOpen(true)}
+                className="flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors p-1"
+                title="Workspace Members"
+              >
+                <Users className="w-5 h-5" />
+                <span className="text-[10px] font-mono font-bold hidden sm:inline">{members.length}</span>
+              </button>
+
               {/* Notification Bell Icon */}
               <NotificationDropdown
                 isOpen={isNotificationOpen}
@@ -551,8 +620,8 @@ export const AppLayout: React.FC = () => {
                 <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase shrink-0">
                   {userRole}
                 </span>
-                <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase shrink-0">
-                  ⚙️ Settings
+                <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase shrink-0 flex items-center gap-1">
+                  <Settings className="w-3 h-3" />
                 </span>
               </div>
             </div>
@@ -911,6 +980,11 @@ export const AppLayout: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Workspace Members Modal */}
+      <WorkspaceMembersModal
+        isOpen={isMembersModalOpen}
+        onClose={() => setIsMembersModalOpen(false)}
+      />
     </div>
   );
 };

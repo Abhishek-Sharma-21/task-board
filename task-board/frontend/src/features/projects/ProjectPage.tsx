@@ -6,11 +6,10 @@ import { useBoardStore } from '../boards/boardStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
 import { useAuthStore } from '../auth/authStore';
 import { ProjectOverview } from './ProjectOverview';
-import { ProjectCalendarView } from './ProjectCalendarView';
 import { TaskDrawer } from '../boards/TaskDrawer';
 import { TaskWorkspaceModal } from '../boards/TaskWorkspaceModal';
-import { ActivityPage } from '../../pages/ActivityPage';
 import type { Task } from '../../schemas';
+import { LayoutGrid, List, Users, Settings } from 'lucide-react';
 
 export const ProjectPage: React.FC = () => {
   const { projectId } = useParams<{ workspaceId: string; projectId: string }>();
@@ -20,10 +19,9 @@ export const ProjectPage: React.FC = () => {
   const { activeProject, selectProject } = useProjectStore();
   const { members: projectMembers, fetchMembers, addMember, removeMember, setHead } = useProjectMemberStore();
   const { fetchBoards, boards, tasksByColumn, isLoading: boardsLoading } = useBoardStore();
-  const [showTeam, setShowTeam] = useState(false);
   const [addMemberEmail, setAddMemberEmail] = useState('');
   const [addingMember, setAddingMember] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'boards' | 'calendar' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'boards' | 'calendar' | 'activity' | 'members' | 'settings'>('overview');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
@@ -113,82 +111,6 @@ export const ProjectPage: React.FC = () => {
     );
   }
 
-  if (showTeam) {
-    return (
-      <div className="p-6 max-w-2xl font-sans">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-black uppercase text-text-primary">
-            {activeProject.name} — Team
-          </h1>
-          <button
-            onClick={() => setShowTeam(false)}
-            className="bg-surface-active hover:bg-surface-hover text-text-primary font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-sm transition-colors"
-          >
-            Back to Overview
-          </button>
-        </div>
-
-        {canManageTeam && (
-          <div className="mb-6 flex gap-2">
-            <select
-              value={addMemberEmail}
-              onChange={(e) => setAddMemberEmail(e.target.value)}
-              className="flex-1 bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
-            >
-              <option value="">SELECT WORKSPACE MEMBER...</option>
-              {nonMemberWorkspaceMembers.map((wm) => (
-                <option key={wm.id} value={wm.email}>
-                  {wm.name.toUpperCase()} ({wm.email})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleAddMember}
-              disabled={!addMemberEmail || addingMember}
-              className="bg-primary hover:bg-primary-hover disabled:bg-surface-active disabled:text-text-faint text-white font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-sm transition-colors"
-            >
-              {addingMember ? 'ADDING...' : 'ADD'}
-            </button>
-          </div>
-        )}
-
-        <div className="space-y-1 font-mono">
-          {projectMembers.map((member) => (
-            <div key={member.id} className="flex items-center justify-between p-3 bg-surface border border-border rounded-md">
-              <div>
-                <span className="font-bold text-text-primary text-sm">{member.name}</span>
-                <span className="text-text-muted text-xs ml-2">{member.email}</span>
-                {member.role === 'head' && (
-                  <span className="ml-2 text-[9px] font-mono font-bold uppercase tracking-wider text-primary bg-primary-light px-2 py-0.5 rounded-sm">
-                    HEAD
-                  </span>
-                )}
-              </div>
-              {canManageTeam && member.id !== user?.id && (
-                <div className="flex gap-2">
-                  {member.role !== 'head' && (
-                    <button
-                      onClick={() => handleSetHead(member.id)}
-                      className="text-[9px] font-mono text-text-muted hover:text-primary uppercase tracking-wider transition-colors"
-                    >
-                      [SET HEAD]
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleRemoveMember(member.id)}
-                    className="text-[9px] font-mono text-text-muted hover:text-danger uppercase tracking-wider transition-colors"
-                  >
-                    [REMOVE]
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 font-sans">
       {/* Top Tabbed Navigation Bar */}
@@ -196,44 +118,41 @@ export const ProjectPage: React.FC = () => {
         <div className="flex items-center space-x-1 font-mono text-xs font-bold uppercase tracking-wider overflow-x-auto whitespace-nowrap">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`py-2 px-4 rounded-sm transition-colors ${
+            className={`py-2 px-4 rounded-sm transition-colors flex items-center gap-2 ${
               activeTab === 'overview' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary bg-surface'
             }`}
           >
+            <LayoutGrid className="w-4 h-4" />
             Overview
           </button>
           <button
             onClick={() => setActiveTab('boards')}
-            className={`py-2 px-4 rounded-sm transition-colors ${
+            className={`py-2 px-4 rounded-sm transition-colors flex items-center gap-2 ${
               activeTab === 'boards' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary bg-surface'
             }`}
           >
+            <List className="w-4 h-4" />
             Boards ({boards.length})
           </button>
           <button
-            onClick={() => setActiveTab('calendar')}
-            className={`py-2 px-4 rounded-sm transition-colors ${
-              activeTab === 'calendar' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary bg-surface'
+            onClick={() => setActiveTab('members')}
+            className={`py-2 px-4 rounded-sm transition-colors flex items-center gap-2 ${
+              activeTab === 'members' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary bg-surface'
             }`}
           >
-            Calendar
+            <Users className="w-4 h-4" />
+            Members ({projectMembers.length})
           </button>
           <button
-            onClick={() => setActiveTab('activity')}
-            className={`py-2 px-4 rounded-sm transition-colors ${
-              activeTab === 'activity' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary bg-surface'
+            onClick={() => setActiveTab('settings')}
+            className={`py-2 px-4 rounded-sm transition-colors flex items-center gap-2 ${
+              activeTab === 'settings' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary bg-surface'
             }`}
           >
-            Activity History
+            <Settings className="w-4 h-4" />
+            Settings
           </button>
         </div>
-
-        <button
-          onClick={() => setShowTeam(true)}
-          className="text-xs font-mono font-bold text-primary hover:text-primary-hover uppercase tracking-wider"
-        >
-          Team ({projectMembers.length}) &rarr;
-        </button>
       </div>
 
       {/* Tab Contents */}
@@ -243,7 +162,7 @@ export const ProjectPage: React.FC = () => {
           tasks={allProjectTasks}
           members={projectMembers.map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role }))}
           canManage={canManageTeam}
-          onOpenManageTeam={() => setShowTeam(true)}
+          onOpenManageTeam={() => setActiveTab('members')}
           onOpenTaskDrawer={(t) => setSelectedTask(t)}
         />
       )}
@@ -283,12 +202,79 @@ export const ProjectPage: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'calendar' && (
-        <ProjectCalendarView tasks={allProjectTasks} />
+      {activeTab === 'members' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-base font-black uppercase text-text-primary">PROJECT MEMBERS</h3>
+          </div>
+          {canManageTeam && (
+            <div className="mb-6 flex gap-2">
+              <select
+                value={addMemberEmail}
+                onChange={(e) => setAddMemberEmail(e.target.value)}
+                className="flex-1 bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+              >
+                <option value="">SELECT WORKSPACE MEMBER...</option>
+                {nonMemberWorkspaceMembers.map((wm) => (
+                  <option key={wm.id} value={wm.email}>
+                    {wm.name.toUpperCase()} ({wm.email})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleAddMember}
+                disabled={!addMemberEmail || addingMember}
+                className="bg-primary hover:bg-primary-hover disabled:bg-surface-active disabled:text-text-faint text-white font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-sm transition-colors"
+              >
+                {addingMember ? 'ADDING...' : 'ADD'}
+              </button>
+            </div>
+          )}
+          <div className="space-y-1 font-mono">
+            {projectMembers.map((member) => (
+              <div key={member.id} className="flex items-center justify-between p-3 bg-surface border border-border rounded-md">
+                <div>
+                  <span className="font-bold text-text-primary text-sm">{member.name}</span>
+                  <span className="text-text-muted text-xs ml-2">{member.email}</span>
+                  {member.role === 'head' && (
+                    <span className="ml-2 text-[9px] font-mono font-bold uppercase tracking-wider text-primary bg-primary-light px-2 py-0.5 rounded-sm">
+                      HEAD
+                    </span>
+                  )}
+                </div>
+                {canManageTeam && member.id !== user?.id && (
+                  <div className="flex gap-2">
+                    {member.role !== 'head' && (
+                      <button
+                        onClick={() => handleSetHead(member.id)}
+                        className="text-[9px] font-mono text-text-muted hover:text-primary uppercase tracking-wider transition-colors"
+                      >
+                        [SET HEAD]
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleRemoveMember(member.id)}
+                      className="text-[9px] font-mono text-text-muted hover:text-danger uppercase tracking-wider transition-colors"
+                    >
+                      [REMOVE]
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {activeTab === 'activity' && (
-        <ActivityPage />
+      {activeTab === 'settings' && (
+        <div className="space-y-4">
+          <h3 className="text-base font-black uppercase text-text-primary">PROJECT SETTINGS</h3>
+          <div className="bg-surface border border-border p-4 rounded-sm">
+            <p className="text-xs text-text-muted font-mono">
+              Project settings will be available here.
+            </p>
+          </div>
+        </div>
       )}
 
       {!isWorkspaceModalOpen && (

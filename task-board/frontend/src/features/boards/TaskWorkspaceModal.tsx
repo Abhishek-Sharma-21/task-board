@@ -49,32 +49,53 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Urgent'>('Medium');
-  const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
+  const [labels, setLabels] = useState<string[]>([]);
   const [labelText, setLabelText] = useState('');
   const [newChecklistText, setNewChecklistText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const lastSyncedTaskIdRef = React.useRef<string | null>(null);
 
-  // Sync state with active task
+  const getFormattedDueDate = (dateVal?: string | Date | null) => {
+    if (!dateVal) return '';
+    const dateObj = typeof dateVal === 'string' ? new Date(dateVal) : dateVal;
+    if (isNaN(dateObj.getTime())) return '';
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const currentDueDate = getFormattedDueDate(task?.dueDate);
+  const isDirty = Boolean(
+    task &&
+      (title.trim() !== task.title ||
+        description !== (task.description || '') ||
+        priority !== task.priority ||
+        JSON.stringify(assigneeIds) !== JSON.stringify((task.assignees || []).map(a => a.id)) ||
+        dueDate !== currentDueDate ||
+        JSON.stringify(labels) !== JSON.stringify(task.labels || []))
+  );
+
+  // Sync state with active task when task ID changes or when not dirty
   useEffect(() => {
     if (task) {
-      setTitle(task.title);
-      setDescription(task.description || '');
-      setPriority(task.priority as any);
-      setAssigneeId(task.assigneeId || null);
-      fetchProjectMembers(task.projectId);
-      if (task.dueDate) {
-        const dateObj = new Date(task.dueDate);
-        const yyyy = dateObj.getFullYear();
-        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(dateObj.getDate()).padStart(2, '0');
-        setDueDate(`${yyyy}-${mm}-${dd}`);
-      } else {
-        setDueDate('');
+      const isNewTask = lastSyncedTaskIdRef.current !== task.id;
+      if (isNewTask || !isDirty) {
+        setTitle(task.title);
+        setDescription(task.description || '');
+        setPriority(task.priority as any);
+        setAssigneeIds((task.assignees || []).map(a => a.id));
+        setDueDate(getFormattedDueDate(task.dueDate));
+        setLabels(task.labels || []);
+        lastSyncedTaskIdRef.current = task.id;
       }
+      fetchProjectMembers(task.projectId);
     }
-  }, [task, fetchProjectMembers]);
+  }, [task, fetchProjectMembers, isDirty]);
 
   // Handle Escape key
   useEffect(() => {
@@ -99,64 +120,57 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
 
   if (!isOpen || !task) return null;
 
-  const handleFieldSave = async (updates: any) => {
+  const handleSaveChanges = async () => {
+    if (!task || !isDirty || isSaving || !title.trim()) return;
+    setIsSaving(true);
     try {
       await updateTask(task.id, {
-        ...updates,
+        title: title.trim(),
+        description,
+        priority,
+        assigneeIds,
+        dueDate: dueDate ? dueDate : null,
+        labels,
         expectedVersion: task.version,
       });
-    } catch (err) {
-      // Handled
+    } catch (err: any) {
+      alert(err.message || 'Failed to save task changes');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleTitleBlur = () => {
-    if (title.trim() && title.trim() !== task.title) {
-      handleFieldSave({ title: title.trim() });
-    } else {
-      setTitle(task.title);
-    }
-  };
-
-  const handleDescBlur = () => {
-    if (description !== task.description) {
-      handleFieldSave({ description });
-    }
+  const handleDiscardChanges = () => {
+    if (!task) return;
+    setTitle(task.title);
+    setDescription(task.description || '');
+    setPriority(task.priority as any);
+    setAssigneeIds((task.assignees || []).map(a => a.id));
+    setDueDate(getFormattedDueDate(task.dueDate));
+    setLabels(task.labels || []);
   };
 
   const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent';
-    setPriority(val);
-    handleFieldSave({ priority: val });
-  };
-
-  const handleAssigneeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value === 'unassigned' ? null : e.target.value;
-    setAssigneeId(val);
-    handleFieldSave({ assigneeId: val });
+    setPriority(e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent');
   };
 
   const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setDueDate(val);
-    handleFieldSave({ dueDate: val ? val : null });
+    setDueDate(e.target.value);
   };
 
   const handleAddLabel = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && labelText.trim()) {
       e.preventDefault();
       const newLabel = labelText.trim().toUpperCase();
-      if (!task.labels.includes(newLabel)) {
-        const newLabels = [...task.labels, newLabel];
-        handleFieldSave({ labels: newLabels });
+      if (!labels.includes(newLabel)) {
+        setLabels([...labels, newLabel]);
       }
       setLabelText('');
     }
   };
 
   const handleRemoveLabel = (labelToRemove: string) => {
-    const newLabels = task.labels.filter((l) => l !== labelToRemove);
-    handleFieldSave({ labels: newLabels });
+    setLabels(labels.filter((l) => l !== labelToRemove));
   };
 
   const handleToggleArchive = async () => {
@@ -326,6 +340,36 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
                 </div>
               ) : (
                 <>
+                  {/* Unsaved Changes Banner */}
+                  {isDirty && (
+                    <div className="bg-primary-light border-2 border-primary/40 p-3 rounded-sm flex items-center justify-between gap-3 shadow-sm">
+                      <div className="flex items-center space-x-2">
+                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-primary">
+                          Unsaved Draft Changes
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={handleDiscardChanges}
+                          disabled={isSaving}
+                          className="px-2.5 py-1 text-xs font-mono font-bold uppercase border border-border bg-surface text-text-secondary hover:text-text-primary rounded-sm transition-colors disabled:opacity-50"
+                        >
+                          Discard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveChanges}
+                          disabled={isSaving || !title.trim()}
+                          className="px-3 py-1 text-xs font-mono font-bold uppercase bg-primary hover:bg-primary-hover text-white rounded-sm transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                        >
+                          {isSaving ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Title */}
                   <div>
                     <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
@@ -335,14 +379,12 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      onBlur={handleTitleBlur}
-                      onKeyDown={(e) => e.key === 'Enter' && handleTitleBlur()}
                       className="w-full bg-transparent border-0 border-b-2 border-transparent hover:border-border focus:border-primary text-base sm:text-lg font-black uppercase text-text-primary py-1 focus:outline-none transition-colors"
                     />
                   </div>
 
                   {/* Priority & Assignee Grid */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div>
                       <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
                         Priority
@@ -359,25 +401,35 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
                       </select>
                     </div>
 
+                    {/* Assignee Multi-Select */}
                     <div>
                       <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
-                        Assignee {!canAssign && <span className="text-text-faint">(read-only)</span>}
+                        Assignees {!canAssign && <span className="text-text-faint">(read-only)</span>}
                       </label>
-                      <select
-                        value={assigneeId || 'unassigned'}
-                        onChange={handleAssigneeChange}
-                        disabled={!canAssign}
-                        className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <option value="unassigned">UNASSIGNED</option>
+                      <div className="border border-border rounded-sm max-h-40 overflow-y-auto bg-input">
                         {projectMembers
                           .filter((member) => member && member.name != null)
                           .map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name.toUpperCase()} {member.role === 'head' ? '(HEAD)' : ''}
-                            </option>
+                            <label key={member.id} className="flex items-center space-x-2 px-3 py-1.5 hover:bg-surface-hover cursor-pointer border-b border-border-subtle last:border-b-0">
+                              <input
+                                type="checkbox"
+                                checked={assigneeIds.includes(member.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAssigneeIds([...assigneeIds, member.id]);
+                                  } else {
+                                    setAssigneeIds(assigneeIds.filter(id => id !== member.id));
+                                  }
+                                }}
+                                disabled={!canAssign}
+                                className="rounded-xs text-primary focus:ring-0"
+                              />
+                              <span className="text-xs font-bold text-text-secondary">
+                                {member.name} {member.role === 'head' ? '(HEAD)' : ''}
+                              </span>
+                            </label>
                           ))}
-                      </select>
+                      </div>
                     </div>
                   </div>
 
@@ -403,7 +455,6 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
                       rows={3}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      onBlur={handleDescBlur}
                       placeholder="ENTER WORK DESCRIPTION OR REQUIREMENTS..."
                       className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none leading-relaxed"
                     />
@@ -472,7 +523,7 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
                       Tags / Labels
                     </label>
                     <div className="flex flex-wrap gap-1.5 mb-2">
-                      {task.labels.map((lbl) => (
+                      {labels.map((lbl) => (
                         <span
                           key={lbl}
                           className="bg-tag border border-tag-border text-tag-text font-mono text-[9px] uppercase tracking-wider px-2 py-1 rounded-sm flex items-center space-x-1"

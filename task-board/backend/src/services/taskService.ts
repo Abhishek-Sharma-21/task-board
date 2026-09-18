@@ -31,13 +31,12 @@ export interface TaskData {
   columnName?: string;
   position: number;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  assigneeId?: string;
-  assignee?: {
+  assignees?: Array<{
     id: string;
     name: string;
     email: string;
     avatarUrl?: string;
-  };
+  }>;
   dependsOnTaskId?: string;
   createdBy: string;
   labels: string[];
@@ -49,17 +48,22 @@ export interface TaskData {
   updatedAt: Date;
 }
 
-async function resolveAssignee(assigneeId?: string | null) {
-  if (!assigneeId || !isValidId(assigneeId)) return undefined;
-  const u = await prisma.user.findUnique({
-    where: { id: assigneeId },
-    select: { id: true, name: true, email: true, avatarUrl: true },
+async function resolveAssignees(taskId: string) {
+  const taskAssignees = await prisma.taskAssignee.findMany({
+    where: { taskId },
+    include: {
+      user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
   });
-  return u || undefined;
+  return taskAssignees.map((ta) => ({
+    id: ta.user.id,
+    name: ta.user.name,
+    email: ta.user.email,
+    avatarUrl: ta.user.avatarUrl || undefined,
+  }));
 }
 
-function formatTask(t: any, assigneeUser?: any): TaskData {
-  const userObj = assigneeUser || t.assignee;
+function formatTask(t: any, assigneeUsers?: Array<{ id: string; name: string; email: string; avatarUrl?: string }>): TaskData {
   const colName = t.column?.name || t.columnName || '';
   const statusStr = colName || t.status || (t.isArchived ? 'Completed' : 'To Do');
   const isDone =
@@ -81,15 +85,7 @@ function formatTask(t: any, assigneeUser?: any): TaskData {
     columnName: colName || undefined,
     position: t.position,
     priority: t.priority,
-    assigneeId: t.assigneeId || undefined,
-    assignee: userObj
-      ? {
-          id: userObj.id,
-          name: userObj.name,
-          email: userObj.email,
-          avatarUrl: userObj.avatarUrl || undefined,
-        }
-      : undefined,
+    assignees: assigneeUsers || [],
     dependsOnTaskId: t.dependsOnTaskId || undefined,
     createdBy: t.createdBy,
     labels: t.labels,
@@ -100,6 +96,15 @@ function formatTask(t: any, assigneeUser?: any): TaskData {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   };
+}
+
+async function syncTaskAssignees(taskId: string, userIds: string[]) {
+  await prisma.taskAssignee.deleteMany({ where: { taskId } });
+  if (userIds.length > 0) {
+    await prisma.taskAssignee.createMany({
+      data: userIds.map((userId) => ({ taskId, userId })),
+    });
+  }
 }
 
 export async function archiveTask(taskId: string, isArchived: boolean = true): Promise<TaskData> {
@@ -128,8 +133,8 @@ export async function archiveTask(taskId: string, isArchived: boolean = true): P
       checklists: { orderBy: { position: 'asc' } },
     },
   });
-  const assigneeUser = await resolveAssignee(updated.assigneeId);
-  return formatTask(updated, assigneeUser);
+  const assigneeUsers = await resolveAssignees(updated.id);
+  return formatTask(updated, assigneeUsers);
 }
 
 export async function getChecklistItems(taskId: string): Promise<ChecklistItemData[]> {
@@ -226,7 +231,6 @@ export async function duplicateTask(taskId: string, userId: string): Promise<Tas
       columnId: original.columnId,
       position,
       priority: original.priority,
-      assigneeId: original.assigneeId,
       createdBy: userId,
       labels: original.labels,
       dueDate: original.dueDate,
@@ -255,8 +259,15 @@ export async function duplicateTask(taskId: string, userId: string): Promise<Tas
     },
   });
 
-  const assigneeUser = await resolveAssignee(duplicated.assigneeId);
-  return formatTask(duplicated, assigneeUser);
+  const originalAssignees = await prisma.taskAssignee.findMany({ where: { taskId: original.id } });
+  if (originalAssignees.length > 0) {
+    await prisma.taskAssignee.createMany({
+      data: originalAssignees.map((a) => ({ taskId: duplicated.id, userId: a.userId })),
+    });
+  }
+
+  const assigneeUsers = await resolveAssignees(duplicated.id);
+  return formatTask(duplicated, assigneeUsers);
 }
 
 export async function createTask(
@@ -267,7 +278,7 @@ export async function createTask(
     description?: string;
     columnId: string;
     priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-    assigneeId?: string | null;
+    assigneeIds?: string[];
     labels?: string[];
     dueDate?: string;
   }
@@ -302,7 +313,6 @@ export async function createTask(
       columnId: payload.columnId,
       position,
       priority: payload.priority || 'Medium',
-      assigneeId: payload.assigneeId || undefined,
       createdBy: userId,
       labels: payload.labels || [],
       dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
@@ -324,8 +334,12 @@ export async function createTask(
     },
   });
 
-  const assigneeUser = await resolveAssignee(task.assigneeId);
-  return formatTask(task, assigneeUser);
+  if (payload.assigneeIds && payload.assigneeIds.length > 0) {
+    await syncTaskAssignees(task.id, payload.assigneeIds);
+  }
+
+  const assigneeUsers = await resolveAssignees(task.id);
+  return formatTask(task, assigneeUsers);
 }
 
 export async function getTasksForBoard(boardId: string): Promise<TaskData[]> {
@@ -351,17 +365,21 @@ export async function getTasksForBoard(boardId: string): Promise<TaskData[]> {
     },
   });
 
-  const assigneeIds = Array.from(new Set(tasks.map((t) => t.assigneeId).filter(Boolean))) as string[];
-  const userMap = new Map<string, any>();
-  if (assigneeIds.length > 0) {
-    const users = await prisma.user.findMany({
-      where: { id: { in: assigneeIds } },
-      select: { id: true, name: true, email: true, avatarUrl: true },
-    });
-    users.forEach((u) => userMap.set(u.id, u));
-  }
+  const taskIds = tasks.map((t) => t.id);
+  const allTaskAssignees = taskIds.length > 0
+    ? await prisma.taskAssignee.findMany({
+        where: { taskId: { in: taskIds } },
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      })
+    : [];
+  const assigneesByTask = new Map<string, Array<{ id: string; name: string; email: string; avatarUrl?: string }>>();
+  allTaskAssignees.forEach((ta) => {
+    const existing = assigneesByTask.get(ta.taskId) || [];
+    existing.push({ id: ta.user.id, name: ta.user.name, email: ta.user.email, avatarUrl: ta.user.avatarUrl || undefined });
+    assigneesByTask.set(ta.taskId, existing);
+  });
 
-  return tasks.map((t) => formatTask(t, t.assigneeId ? userMap.get(t.assigneeId) : undefined));
+  return tasks.map((t) => formatTask(t, assigneesByTask.get(t.id) || []));
 }
 
 export async function getTaskById(taskId: string): Promise<TaskData | null> {
@@ -388,8 +406,8 @@ export async function getTaskById(taskId: string): Promise<TaskData | null> {
   if (!task) {
     return null;
   }
-  const assigneeUser = await resolveAssignee(task.assigneeId);
-  return formatTask(task, assigneeUser);
+  const assigneeUsers = await resolveAssignees(task.id);
+  return formatTask(task, assigneeUsers);
 }
 
 export async function updateTask(
@@ -400,7 +418,7 @@ export async function updateTask(
     priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
     status?: string;
     columnId?: string;
-    assigneeId?: string | null;
+    assigneeIds?: string[];
     labels?: string[];
     dueDate?: string | null;
     expectedVersion?: number;
@@ -459,12 +477,6 @@ export async function updateTask(
     }
   }
 
-  if (payload.assigneeId === null) {
-    updates.assigneeId = null;
-  } else if (payload.assigneeId !== undefined) {
-    updates.assigneeId = payload.assigneeId;
-  }
-
   if (payload.dueDate === null) {
     updates.dueDate = null;
   } else if (payload.dueDate !== undefined) {
@@ -492,8 +504,12 @@ export async function updateTask(
     },
   });
 
-  const assigneeUser = await resolveAssignee(updated.assigneeId);
-  return formatTask(updated, assigneeUser);
+  if (payload.assigneeIds !== undefined) {
+    await syncTaskAssignees(taskId, payload.assigneeIds);
+  }
+
+  const assigneeUsers = await resolveAssignees(taskId);
+  return formatTask(updated, assigneeUsers);
 }
 
 export async function moveTask(
@@ -590,8 +606,8 @@ export async function moveTask(
     });
   });
 
-  const assigneeUser = await resolveAssignee(updated.assigneeId);
-  return formatTask(updated, assigneeUser);
+  const assigneeUsers = await resolveAssignees(updated.id);
+  return formatTask(updated, assigneeUsers);
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
@@ -669,14 +685,21 @@ export async function getCompletedTasksHistory(
     orderBy: { updatedAt: 'desc' },
   });
 
-  const formatted = await Promise.all(
-    tasks.map(async (t) => {
-      const assigneeUser = await resolveAssignee(t.assigneeId);
-      return formatTask(t, assigneeUser);
-    })
-  );
+  const taskIds = tasks.map((t) => t.id);
+  const allTaskAssignees = taskIds.length > 0
+    ? await prisma.taskAssignee.findMany({
+        where: { taskId: { in: taskIds } },
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      })
+    : [];
+  const assigneesByTask = new Map<string, Array<{ id: string; name: string; email: string; avatarUrl?: string }>>();
+  allTaskAssignees.forEach((ta) => {
+    const existing = assigneesByTask.get(ta.taskId) || [];
+    existing.push({ id: ta.user.id, name: ta.user.name, email: ta.user.email, avatarUrl: ta.user.avatarUrl || undefined });
+    assigneesByTask.set(ta.taskId, existing);
+  });
 
-  return formatted;
+  return tasks.map((t) => formatTask(t, assigneesByTask.get(t.id) || []));
 }
 
 export async function restoreTask(taskId: string): Promise<TaskData> {
@@ -725,8 +748,8 @@ export async function restoreTask(taskId: string): Promise<TaskData> {
     },
   });
 
-  const assigneeUser = await resolveAssignee(updated.assigneeId);
-  return formatTask(updated, assigneeUser);
+  const assigneeUsers = await resolveAssignees(updated.id);
+  return formatTask(updated, assigneeUsers);
 }
 
 export async function pruneCompletedTasks(
