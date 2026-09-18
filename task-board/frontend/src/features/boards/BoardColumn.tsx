@@ -13,6 +13,7 @@ interface BoardColumnProps {
   tasks: Task[];
   canManageColumns?: boolean;
   isDragDisabled?: boolean;
+  taskPresence?: Record<string, Array<{ id: string; name: string }>>;
   onAddTask: (title: string) => Promise<void>;
   onDeleteColumn: () => void;
   onRenameColumn: (name: string) => void;
@@ -25,6 +26,7 @@ const BoardColumnComponent: React.FC<BoardColumnProps> = ({
   tasks,
   canManageColumns = false,
   isDragDisabled = false,
+  taskPresence = {},
   onAddTask,
   onDeleteColumn,
   onRenameColumn,
@@ -145,6 +147,7 @@ const BoardColumnComponent: React.FC<BoardColumnProps> = ({
               task={task}
               isDragDisabled={isDragDisabled}
               onClick={() => onTaskClick(task)}
+              viewingUsers={taskPresence[task.id] || []}
             />
           ))}
         </SortableContext>

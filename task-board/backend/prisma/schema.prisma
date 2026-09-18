@@ -37,6 +37,7 @@ model Workspace {
   projects              Project[]
   activities            Activity[]
   invites               WorkspaceInvite[]
+  automationRules       AutomationRule[]
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 }
@@ -140,6 +141,7 @@ model Task {
   dueDate         DateTime?
   version         Int             @default(0)
   isArchived      Boolean         @default(false)
+  columnEnteredAt DateTime        @default(now())
   comments        Comment[]
   chatMessages    TaskChatMessage[]
   checklists      ChecklistItem[]
@@ -239,5 +241,20 @@ model TaskChatMessage {
 
   @@index([taskId, createdAt])
   @@index([userId])
+}
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  trigger     String   // "task.moved", "task.created", "task.assigned", "task.overdue"
+  conditions  Json     // { "columnId": "...", "priority": "High", ... }
+  actions     Json     // { "moveToColumn": "...", "setPriority": "...", "notify": true, ... }
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 

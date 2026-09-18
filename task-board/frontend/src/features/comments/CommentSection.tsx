@@ -5,6 +5,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
 import { useConfirmStore } from '../../components/common/confirmStore';
 import { getSocket } from '../../sockets/socket';
+import { RichTextEditor } from '../../components/RichTextEditor';
 
 interface CommentSectionProps {
   taskId: string;
@@ -212,12 +213,11 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
 
       {/* Write Comment Form */}
       <form onSubmit={handlePostComment} className="space-y-3 relative">
-        <textarea
-          rows={3}
+        <RichTextEditor
           value={commentBody}
-          onChange={handleInputChange}
+          onChange={setCommentBody}
           placeholder="ADD TO THE DISCUSSION (TYPE @ TO MENTION A TEAMMATE)..."
-          className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none"
+          minRows={3}
         />
 
         {/* Mention Suggestions Popover */}

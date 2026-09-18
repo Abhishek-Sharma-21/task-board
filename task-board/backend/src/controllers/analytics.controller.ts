@@ -22,3 +22,24 @@ export async function getWorkspaceAnalytics(req: Request, res: Response, next: N
     next(err);
   }
 }
+
+export async function getProjectVelocity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { workspaceId, projectId } = req.params;
+    const weeks = parseInt(req.query.weeks as string) || 8;
+    const data = await analyticsService.getProjectVelocity(workspaceId, projectId, weeks);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTaskAging(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { workspaceId } = req.params;
+    const data = await analyticsService.getTaskAging(workspaceId);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}

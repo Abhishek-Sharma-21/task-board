@@ -8,6 +8,9 @@ let ioInstance: Server | null = null;
 // Track active users per board: map of boardId -> map of userId -> socket info
 const boardPresence = new Map<string, Map<string, { socketId: string; name: string }>>();
 
+// Track users viewing specific tasks: map of taskId -> map of userId -> { name, socketId }
+const taskPresence = new Map<string, Map<string, { socketId: string; name: string }>>();
+
 export function setupSocketHandlers(io: Server) {
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.userId;
@@ -92,8 +95,43 @@ export function setupSocketHandlers(io: Server) {
       socket.to(`board:${boardId}`).emit('userStoppedTyping', { taskId, userId });
     });
 
+    // Handle task drawer open/close (task presence)
+    socket.on('joinTask', ({ taskId, boardId, name }: { taskId: string; boardId: string; name: string }) => {
+      if (!taskPresence.has(taskId)) {
+        taskPresence.set(taskId, new Map());
+      }
+      taskPresence.get(taskId)!.set(userId, { socketId: socket.id, name });
+
+      const viewers = Array.from(taskPresence.get(taskId)!.entries())
+        .filter(([uid]) => uid !== userId)
+        .map(([uid, info]) => ({ id: uid, name: info.name }));
+      socket.to(`board:${boardId}`).emit('task:presence', { taskId, viewers });
+    });
+
+    socket.on('leaveTask', ({ taskId, boardId }: { taskId: string; boardId: string }) => {
+      if (taskPresence.has(taskId)) {
+        const tMap = taskPresence.get(taskId)!;
+        tMap.delete(userId);
+        if (tMap.size === 0) taskPresence.delete(taskId);
+      }
+      const viewers = taskPresence.has(taskId)
+        ? Array.from(taskPresence.get(taskId)!.entries())
+            .filter(([uid]) => uid !== userId)
+            .map(([uid, info]) => ({ id: uid, name: info.name }))
+        : [];
+      socket.to(`board:${boardId}`).emit('task:presence', { taskId, viewers });
+    });
+
     socket.on('disconnect', () => {
       console.log(`[socket] User disconnected: ${userId} (socket ID: ${socket.id})`);
+
+      // Clean up task presence
+      for (const [taskId, tMap] of taskPresence.entries()) {
+        if (tMap.has(userId) && tMap.get(userId)!.socketId === socket.id) {
+          tMap.delete(userId);
+          if (tMap.size === 0) taskPresence.delete(taskId);
+        }
+      }
 
       // Clean up user from all board presences
       for (const [boardId, pMap] of boardPresence.entries()) {

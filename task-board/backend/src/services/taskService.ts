@@ -44,6 +44,7 @@ export interface TaskData {
   version: number;
   isArchived: boolean;
   checklists?: ChecklistItemData[];
+  columnEnteredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -93,6 +94,7 @@ function formatTask(t: any, assigneeUsers?: Array<{ id: string; name: string; em
     version: t.version,
     isArchived: t.isArchived || false,
     checklists: t.checklists || [],
+    columnEnteredAt: t.columnEnteredAt || undefined,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   };

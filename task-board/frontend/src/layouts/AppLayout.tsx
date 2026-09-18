@@ -12,8 +12,10 @@ import { OfflineSyncBanner } from '../components/common/OfflineSyncBanner';
 import { ToastContainer } from '../components/common/ToastContainer';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { NotificationDropdown } from '../components/NotificationDropdown';
-import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, Sun, Moon, Folder, LogOut, Users, Activity, Menu, Check, ChevronsUpDown } from 'lucide-react';
+import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, Sun, Moon, Folder, LogOut, Users, Activity, Menu, Check, ChevronsUpDown, BarChart3 } from 'lucide-react';
 import { WorkspaceMembersModal } from '../components/WorkspaceMembersModal';
+import { ActivityFeedWidget } from '../components/ActivityFeedWidget';
+import { TemplatePicker } from '../components/TemplatePicker';
 import { useToastStore } from '../components/common/toastStore';
 import { useConfirmStore } from '../components/common/confirmStore';
 
@@ -28,6 +30,7 @@ export const AppLayout: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -524,6 +527,19 @@ export const AppLayout: React.FC = () => {
                 <span className="ml-auto text-[9px] font-mono bg-primary text-white px-1.5 py-0.5 rounded-full">{unreadCount}</span>
               )}
             </button>
+            {workspaceId && (
+              <button
+                onClick={() => navigate(`/workspaces/${workspaceId}/analytics`)}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-xs font-bold transition-colors border-l-2 ${
+                  location.pathname.includes('/analytics')
+                    ? 'bg-surface-active border-l-primary text-text-primary'
+                    : 'border-l-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 shrink-0" />
+                <span>Analytics</span>
+              </button>
+            )}
           </nav>
 
           {/* Settings & Admin - Collapsible */}
@@ -792,8 +808,20 @@ export const AppLayout: React.FC = () => {
                 </button>
               </div>
             </form>
+            <div className="text-center">
+              <button
+                onClick={() => { setIsProjectModalOpen(false); setShowTemplatePicker(true); }}
+                className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors"
+              >
+                Or create from template &rarr;
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {showTemplatePicker && (
+        <TemplatePicker isOpen={showTemplatePicker} onClose={() => setShowTemplatePicker(false)} onProjectCreated={() => {}} />
       )}
 
       {/* Board Custom Modal */}
@@ -1035,6 +1063,7 @@ export const AppLayout: React.FC = () => {
         isOpen={isMembersModalOpen}
         onClose={() => setIsMembersModalOpen(false)}
       />
+      <ActivityFeedWidget />
     </div>
   );
 };

@@ -270,6 +270,7 @@ export const TaskSchema = z.object({
   dueDate: z.union([z.date(), z.string()]).nullable().optional(),
   version: z.number(),
   isArchived: z.boolean().optional(),
+  columnEnteredAt: z.union([z.date(), z.string()]).optional(),
   checklists: z.array(ChecklistItemSchema).optional(),
   createdAt: z.union([z.date(), z.string()]),
   updatedAt: z.union([z.date(), z.string()]),

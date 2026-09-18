@@ -280,12 +280,17 @@ export const BoardPage: React.FC = () => {
       }
     };
 
+    const handleTaskPresence = (data: { taskId: string; viewers: Array<{ id: string; name: string }> }) => {
+      useBoardStore.getState().setTaskPresence(data.taskId, data.viewers);
+    };
+
     socket?.on?.('task:updated', handleTaskUpdated);
     socket?.on?.('task:moved', handleTaskMoved);
     socket?.on?.('task:deleted', handleTaskDeleted);
     socket?.on?.('board:presence', handlePresence);
     socket?.on?.('board:updated', handleBoardUpdated);
     socket?.on?.('comment:created', handleCommentCreated);
+    socket?.on?.('task:presence', handleTaskPresence);
 
     return () => {
       socket?.emit?.('leaveBoard', { boardId });
@@ -295,6 +300,7 @@ export const BoardPage: React.FC = () => {
       socket?.off?.('board:presence', handlePresence);
       socket?.off?.('board:updated', handleBoardUpdated);
       socket?.off?.('comment:created', handleCommentCreated);
+      socket?.off?.('task:presence', handleTaskPresence);
       setActiveUsers([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -743,6 +749,7 @@ export const BoardPage: React.FC = () => {
                   tasks={filteredTasksByColumn[col.id] || []}
                   canManageColumns={canManageColumns}
                   isDragDisabled={hasActiveFilters}
+                  taskPresence={useBoardStore.getState().taskPresence}
                   onAddTask={(title) => createTask(activeBoard.id, { title, columnId: col.id })}
                   onDeleteColumn={() => deleteColumn(activeBoard.id, col.id)}
                   onRenameColumn={(name) => renameColumn(activeBoard.id, col.id, name)}

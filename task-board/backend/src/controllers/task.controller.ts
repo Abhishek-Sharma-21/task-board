@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import * as taskService from '../services/taskService.js';
 import * as activityService from '../services/activityService.js';
 import * as notificationService from '../services/notificationService.js';
+import * as automationService from '../services/automationService.js';
 import { broadcast } from '../sockets/socket.js';
 import { CreateTaskInput, UpdateTaskInput, MoveTaskInput } from '../schemas.js';
 import { prisma } from '../config/db.js';
@@ -306,6 +307,11 @@ export async function moveTask(req: Request, res: Response, next: NextFunction):
         const toCol = await prisma.boardColumn.findUnique({ where: { id: task.columnId } });
         const colNames = `${fromCol?.name || 'Unknown'} → ${toCol?.name || 'Unknown'}`;
 
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { columnEnteredAt: new Date() },
+        });
+
         await activityService.createActivity(
           project.workspaceId,
           userId,
@@ -342,6 +348,11 @@ export async function moveTask(req: Request, res: Response, next: NextFunction):
 
     // Broadcast real-time Socket event to the room
     broadcast(`board:${task.boardId}`, 'task:moved', task);
+
+    // Evaluate automation rules for task.moved trigger
+    if (originalTask.columnId !== task.columnId && project) {
+      automationService.evaluateRules(project.workspaceId, 'task.moved', task, userId).catch(() => {});
+    }
 
     res.status(200).json({
       success: true,

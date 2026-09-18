@@ -9,6 +9,7 @@ interface BoardState {
   columns: BoardColumn[];
   tasksByColumn: Record<string, Task[]>;
   activeUsers: Array<{ id: string; name: string }>;
+  taskPresence: Record<string, Array<{ id: string; name: string }>>;
   isLoading: boolean;
   error: string | null;
 
@@ -16,6 +17,7 @@ interface BoardState {
   selectBoard: (boardId: string) => Promise<void>;
   resetWorkspaceBoards: () => void;
   setActiveUsers: (users: Array<{ id: string; name: string }>) => void;
+  setTaskPresence: (taskId: string, viewers: Array<{ id: string; name: string }>) => void;
   createBoard: (projectId: string, name: string, description?: string) => Promise<Board>;
   fetchColumnsAndTasks: (boardId: string) => Promise<void>;
   
@@ -79,11 +81,15 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       columns: [],
       tasksByColumn: {},
       activeUsers: [],
+      taskPresence: {},
       error: null,
     });
   },
 
   setActiveUsers: (users) => set({ activeUsers: users }),
+  setTaskPresence: (taskId, viewers) => set((state) => ({
+    taskPresence: { ...state.taskPresence, [taskId]: viewers },
+  })),
 
   fetchBoards: async (projectId) => {
     set({ isLoading: true, error: null });

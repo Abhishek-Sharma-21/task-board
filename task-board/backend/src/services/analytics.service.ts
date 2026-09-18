@@ -188,3 +188,107 @@ export async function getWorkspaceAnalytics(
     projectMetrics,
   };
 }
+
+export interface VelocityData {
+  week: string;
+  completed: number;
+  created: number;
+}
+
+export interface BurndownData {
+  day: string;
+  total: number;
+  remaining: number;
+  completed: number;
+}
+
+export interface TaskAgingData {
+  taskId: string;
+  title: string;
+  columnName: string;
+  daysInColumn: number;
+  boardName: string;
+  priority: string;
+}
+
+export async function getProjectVelocity(
+  _workspaceId: string,
+  projectId: string,
+  weeks: number = 8
+): Promise<VelocityData[]> {
+  const now = new Date();
+  const startDate = new Date(now.getTime() - weeks * 7 * 86400000);
+  const data: VelocityData[] = [];
+
+  for (let w = 0; w < weeks; w++) {
+    const weekStart = new Date(startDate.getTime() + w * 7 * 86400000);
+    const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
+
+    const completed = await prisma.task.count({
+      where: {
+        projectId,
+        updatedAt: { gte: weekStart, lt: weekEnd },
+        OR: [
+          { isArchived: true },
+          { column: { name: { contains: 'Done', mode: 'insensitive' } } },
+          { column: { name: { contains: 'Complete', mode: 'insensitive' } } },
+        ],
+      },
+    });
+
+    const created = await prisma.task.count({
+      where: {
+        projectId,
+        createdAt: { gte: weekStart, lt: weekEnd },
+      },
+    });
+
+    data.push({
+      week: weekStart.toISOString().slice(0, 10),
+      completed,
+      created,
+    });
+  }
+
+  return data;
+}
+
+export async function getTaskAging(
+  workspaceId: string
+): Promise<TaskAgingData[]> {
+  const projects = await prisma.project.findMany({
+    where: { workspaceId },
+    select: { id: true },
+  });
+  const projectIds = projects.map((p) => p.id);
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      projectId: { in: projectIds },
+      isArchived: false,
+    },
+    include: {
+      column: {
+        select: { name: true, board: { select: { name: true } } },
+      },
+    },
+  });
+
+  const now = new Date();
+  return tasks
+    .map((t) => {
+      const entered = t.columnEnteredAt || t.createdAt;
+      const days = Math.floor((now.getTime() - new Date(entered).getTime()) / 86400000);
+      return {
+        taskId: t.id,
+        title: t.title,
+        columnName: t.column?.name || '',
+        daysInColumn: days,
+        boardName: t.column?.board?.name || '',
+        priority: t.priority,
+      };
+    })
+    .filter((t) => t.daysInColumn >= 3)
+    .sort((a, b) => b.daysInColumn - a.daysInColumn)
+    .slice(0, 50);
+}

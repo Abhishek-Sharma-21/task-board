@@ -15,6 +15,8 @@ export const CalendarPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterPriority, setFilterPriority] = useState<string>('All');
+  const [filterProject, setFilterProject] = useState<string>('All');
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -84,14 +86,34 @@ export const CalendarPage: React.FC = () => {
     setCurrentDate(new Date());
   };
 
+  // Derive unique project names from tasks that have due dates
+  const projectNames = useMemo(() => {
+    const names = new Set<string>();
+    allTasks.forEach((t) => {
+      if (t.dueDate && t.projectName) names.add(t.projectName);
+    });
+    return Array.from(names).sort();
+  }, [allTasks]);
+
+  // Toggle expand/collapse for a day cell
+  const toggleDay = (dateKey: string) => {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dateKey)) next.delete(dateKey);
+      else next.add(dateKey);
+      return next;
+    });
+  };
+
   // Filter tasks for calendar view
   const filteredTasks = useMemo(() => {
     return allTasks.filter((task) => {
       if (!task.dueDate) return false;
       if (filterPriority !== 'All' && task.priority !== filterPriority) return false;
+      if (filterProject !== 'All' && task.projectName !== filterProject) return false;
       return true;
     });
-  }, [allTasks, filterPriority]);
+  }, [allTasks, filterPriority, filterProject]);
 
   // Group tasks by date string (YYYY-MM-DD)
   const tasksByDate = useMemo(() => {
@@ -186,20 +208,35 @@ export const CalendarPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Priority Filter */}
-        <div className="flex items-center space-x-2 font-mono text-xs">
-          <span className="text-[10px] uppercase text-text-muted">Priority:</span>
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="bg-input border border-border text-text-primary py-1 px-2 rounded-xs font-bold uppercase"
-          >
-            <option value="All">ALL PRIORITIES</option>
-            <option value="Low">LOW</option>
-            <option value="Medium">MEDIUM</option>
-            <option value="High">HIGH</option>
-            <option value="Urgent">URGENT</option>
-          </select>
+        {/* Filters */}
+        <div className="flex items-center space-x-3 font-mono text-xs">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] uppercase text-text-muted">Project:</span>
+            <select
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              className="bg-input border border-border text-text-primary py-1 px-2 rounded-xs font-bold uppercase"
+            >
+              <option value="All">ALL PROJECTS</option>
+              {projectNames.map((name) => (
+                <option key={name} value={name}>{name.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] uppercase text-text-muted">Priority:</span>
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className="bg-input border border-border text-text-primary py-1 px-2 rounded-xs font-bold uppercase"
+            >
+              <option value="All">ALL PRIORITIES</option>
+              <option value="Low">LOW</option>
+              <option value="Medium">MEDIUM</option>
+              <option value="High">HIGH</option>
+              <option value="Urgent">URGENT</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -234,6 +271,10 @@ export const CalendarPage: React.FC = () => {
 
               const dayTasks = tasksByDate.map[cell.dateKey] || [];
               const isToday = cell.dateKey === tasksByDate.today;
+              const isExpanded = expandedDays.has(cell.dateKey);
+              const MAX_VISIBLE = 2;
+              const visibleTasks = isExpanded ? dayTasks : dayTasks.slice(0, MAX_VISIBLE);
+              const hiddenCount = dayTasks.length - MAX_VISIBLE;
               const hasOverdue = dayTasks.some(
                 (t) =>
                   cell.dateKey < tasksByDate.today &&
@@ -264,17 +305,36 @@ export const CalendarPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="space-y-1 overflow-y-auto max-h-[80px]">
-                    {dayTasks.map((task) => (
+                  <div className="space-y-1 overflow-y-auto max-h-[120px]">
+                    {visibleTasks.map((task) => (
                       <div
                         key={task.id}
                         onClick={() => setSelectedTask(task)}
-                        className={`p-1 text-[10px] font-mono rounded-xs cursor-pointer truncate border transition-all ${getTaskColor(task, cell.dateKey, tasksByDate.today)}`}
-                        title={task.title}
+                        className={`p-1 text-[10px] font-mono rounded-xs cursor-pointer border transition-all ${getTaskColor(task, cell.dateKey, tasksByDate.today)}`}
+                        title={`${task.title}${task.projectName ? ` (${task.projectName})` : ''}`}
                       >
-                        <span className="truncate block">{task.title}</span>
+                        <span className="truncate block leading-tight">{task.title}</span>
+                        {task.projectName && (
+                          <span className="truncate block text-[8px] opacity-60 leading-tight mt-0.5">{task.projectName}</span>
+                        )}
                       </div>
                     ))}
+                    {!isExpanded && hiddenCount > 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleDay(cell.dateKey); }}
+                        className="w-full text-[9px] font-mono font-bold text-primary hover:text-primary/80 text-center py-0.5 rounded-xs hover:bg-primary/5 transition-colors"
+                      >
+                        +{hiddenCount} more
+                      </button>
+                    )}
+                    {isExpanded && dayTasks.length > MAX_VISIBLE && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleDay(cell.dateKey); }}
+                        className="w-full text-[9px] font-mono font-bold text-text-muted hover:text-text-primary text-center py-0.5 rounded-xs hover:bg-surface-hover transition-colors"
+                      >
+                        Show less
+                      </button>
+                    )}
                   </div>
                 </div>
               );

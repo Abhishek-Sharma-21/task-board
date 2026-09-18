@@ -3,15 +3,16 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Task } from '../../schemas';
 import { parseLocalDate } from '../../utils/dates';
-import { Calendar, CheckCircle2 } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
   onClick?: () => void;
   isDragDisabled?: boolean;
+  viewingUsers?: Array<{ id: string; name: string }>;
 }
 
-const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisabled = false }) => {
+const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisabled = false, viewingUsers = [] }) => {
   const {
     attributes,
     listeners,
@@ -96,6 +97,26 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
     task.isArchived ||
     task.status?.toLowerCase().includes('done') ||
     task.status?.toLowerCase().includes('complete');
+
+  const getAgingBadge = () => {
+    if (isDone || !task.columnEnteredAt) return null;
+    const entered = new Date(task.columnEnteredAt);
+    const days = Math.floor((Date.now() - entered.getTime()) / 86400000);
+    if (days < 3) return null;
+    if (days >= 6) return (
+      <span className="flex items-center gap-0.5 bg-danger/15 border border-danger/30 text-danger font-mono text-[8px] font-bold px-1 py-0.5 rounded-xs" title={`${days} days in column`}>
+        <Clock className="w-2.5 h-2.5" />
+        {days}d STUCK
+      </span>
+    );
+    if (days >= 3) return (
+      <span className="flex items-center gap-0.5 bg-warning/15 border border-warning/30 text-warning font-mono text-[8px] font-bold px-1 py-0.5 rounded-xs" title={`${days} days in column`}>
+        <Clock className="w-2.5 h-2.5" />
+        {days}d
+      </span>
+    );
+    return null;
+  };
 
   return (
     <div
@@ -182,8 +203,15 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
         )}
       </div>
 
-      {/* Bottom Row: Tags & Checklist Badge */}
+      {/* Bottom Row: Tags, Aging Badge, Presence & Checklist Badge */}
       <div className="flex flex-wrap gap-1.5 items-center">
+        {getAgingBadge()}
+        {viewingUsers.length > 0 && (
+          <span className="flex items-center gap-1 bg-primary/10 border border-primary/20 text-primary font-mono text-[8px] font-bold px-1 py-0.5 rounded-xs" title={`Viewing: ${viewingUsers.map(u => u.name).join(', ')}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            {viewingUsers.length === 1 ? viewingUsers[0].name : `${viewingUsers.length} viewing`}
+          </span>
+        )}
         {checklists.length > 0 && (
           <span className="bg-surface-active border border-border text-text-secondary font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-xs">
             ✓ {completedChecklists}/{checklists.length}

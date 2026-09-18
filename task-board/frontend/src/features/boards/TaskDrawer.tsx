@@ -12,6 +12,8 @@ import { api } from '../../api/client';
 import type { Task } from '../../schemas';
 import { MoreHorizontal, Copy, Archive, Trash2, MessageSquare, History, CheckCircle2, AlertTriangle, Clock, RotateCcw, X } from 'lucide-react';
 import { parseLocalDate } from '../../utils/dates';
+import { RichTextEditor } from '../../components/RichTextEditor';
+import { getSocket } from '../../sockets/socket';
 
 interface TaskDrawerProps {
   task: Task | null;
@@ -84,18 +86,31 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
         lastSyncedTaskIdRef.current = task.id;
       }
       fetchProjectMembers(task.projectId);
+
+      // Emit task presence (joinTask)
+      if (currentUser?.name) {
+        const socket = getSocket();
+        if (lastSyncedTaskIdRef.current && lastSyncedTaskIdRef.current !== task.id) {
+          socket.emit('leaveTask', { taskId: lastSyncedTaskIdRef.current, boardId: task.boardId });
+        }
+        socket.emit('joinTask', { taskId: task.id, boardId: task.boardId, name: currentUser.name });
+      }
     }
-  }, [task, fetchProjectMembers, isDirty]);
+  }, [task, fetchProjectMembers, isDirty, currentUser]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Leave task presence before closing
+        if (task && currentUser?.name) {
+          getSocket().emit('leaveTask', { taskId: task.id, boardId: task.boardId });
+        }
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, task, currentUser]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -518,13 +533,12 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
             <label className="block text-[9px] uppercase font-mono tracking-wider text-text-muted mb-1">
               Description
             </label>
-            <textarea
-              rows={3}
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="ENTER WORK DESCRIPTION OR REQUIREMENTS..."
               disabled={isSaving}
-              className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+              minRows={3}
             />
           </div>
 

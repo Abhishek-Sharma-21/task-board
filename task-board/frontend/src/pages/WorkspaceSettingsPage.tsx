@@ -9,6 +9,7 @@ import { ChangePasswordInput } from '../schemas';
 import { isAxiosError } from 'axios';
 import { useToastStore } from '../components/common/toastStore';
 import { useConfirmStore } from '../components/common/confirmStore';
+import { AutomationSettings } from './AutomationSettings';
 
 export const WorkspaceSettingsPage: React.FC = () => {
   useParams<{ workspaceId: string }>();
@@ -45,7 +46,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
   } = useProjectMemberStore();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'members' | 'projects' | 'completed' | 'permissions' | 'danger'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'members' | 'projects' | 'completed' | 'permissions' | 'automation' | 'danger'>('profile');
 
   // Task History State
   const [historySearch, setHistorySearch] = useState('');
@@ -538,6 +539,16 @@ export const WorkspaceSettingsPage: React.FC = () => {
           }`}
         >
           Permissions
+        </button>
+        <button
+          onClick={() => setActiveTab('automation')}
+          className={`py-2.5 px-4 rounded-t-sm border-t border-l border-r transition-colors shrink-0 ${
+            activeTab === 'automation'
+              ? 'bg-surface border-border text-primary font-black border-b-2 border-b-primary'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          Automation
         </button>
         <button
           onClick={() => setActiveTab('danger')}
@@ -1437,6 +1448,13 @@ export const WorkspaceSettingsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: AUTOMATION */}
+      {activeTab === 'automation' && (
+        <div className="bg-surface border border-border rounded-sm p-6">
+          <AutomationSettings />
         </div>
       )}
 
