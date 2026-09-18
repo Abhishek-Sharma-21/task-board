@@ -1,7 +1,6 @@
 import React from 'react';
 import { Task, BoardColumn } from '../../schemas';
 import { useBoardStore } from './boardStore';
-import { useWorkspaceStore } from '../workspaces/workspaceStore';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -12,8 +11,6 @@ interface TaskListViewProps {
 export const TaskListView: React.FC<TaskListViewProps> = ({ tasks, columns, onOpenTask }) => {
   const duplicateTask = useBoardStore((state) => state.duplicateTask);
   const deleteTask = useBoardStore((state) => state.deleteTask);
-  const members = useWorkspaceStore((state) => state.members);
-
   const getColumnName = (colId: string) => {
     return columns.find((c) => c.id === colId)?.name || 'Unknown';
   };
