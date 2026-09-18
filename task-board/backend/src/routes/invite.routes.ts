@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import * as controller from '../controllers/invite.controller.js';
 import { authenticate, requireWorkspaceRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 
 const router = Router();
 
@@ -10,7 +9,6 @@ router.post(
   '/workspaces/:id/invites/email',
   authenticate,
   requireWorkspaceRole('admin', 'id'),
-  csrfProtection,
   controller.createEmailInvite
 );
 
@@ -19,7 +17,6 @@ router.post(
   '/workspaces/:id/invites/link',
   authenticate,
   requireWorkspaceRole('admin', 'id'),
-  csrfProtection,
   controller.createShareableLink
 );
 
@@ -36,7 +33,6 @@ router.delete(
   '/workspaces/:id/invites/:inviteId',
   authenticate,
   requireWorkspaceRole('admin', 'id'),
-  csrfProtection,
   controller.revokeInvite
 );
 
@@ -47,7 +43,6 @@ router.get('/invites/validate', controller.getInviteByToken);
 router.post(
   '/invites/accept',
   authenticate,
-  csrfProtection,
   controller.acceptInvite
 );
 

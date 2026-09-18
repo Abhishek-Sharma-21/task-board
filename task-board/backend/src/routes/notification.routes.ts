@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import * as controller from '../controllers/notification.controller.js';
 import { authenticate } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 
 const router = Router();
 
@@ -16,13 +15,11 @@ router.get(
 router.put(
   '/read-all',
   authenticate,
-  csrfProtection,
   controller.markAllAsRead
 );
 router.patch(
   '/read-all',
   authenticate,
-  csrfProtection,
   controller.markAllAsRead
 );
 
@@ -30,13 +27,11 @@ router.patch(
 router.put(
   '/:id/read',
   authenticate,
-  csrfProtection,
   controller.markAsRead
 );
 router.patch(
   '/:id/read',
   authenticate,
-  csrfProtection,
   controller.markAsRead
 );
 

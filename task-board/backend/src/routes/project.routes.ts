@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { CreateProjectInput } from '../schemas.js';
 import * as controller from '../controllers/project.controller.js';
 import { authenticate, requireWorkspaceRole, requireProjectRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 import { validateBody } from '../validators/index.js';
 
 const router = Router();
@@ -12,7 +11,6 @@ const router = Router();
 router.post(
   '/workspaces/:workspaceId/projects',
   authenticate,
-  csrfProtection,
   requireWorkspaceRole('admin', 'workspaceId'),
   validateBody(CreateProjectInput),
   controller.createProject
@@ -39,7 +37,6 @@ router.get(
 router.put(
   '/projects/:id',
   authenticate,
-  csrfProtection,
   requireProjectRole('admin', 'id'),
   validateBody(CreateProjectInput.partial()),
   controller.updateProject

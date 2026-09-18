@@ -6,47 +6,20 @@ interface AuthResponseData {
   accessToken: string;
 }
 
-// CSRF token stored in memory (fetched from /api/csrf endpoint)
-let csrfToken: string | null = null;
-
-async function fetchCsrfToken(): Promise<string> {
-  if (csrfToken) return csrfToken;
-  try {
-    const res = await axios.get(`${env.apiBaseUrl}/csrf`, { withCredentials: true });
-    csrfToken = res.data?.data?.csrfToken ?? null;
-  } catch {
-    // Ignore — will retry on next request
-  }
-  return csrfToken ?? '';
-}
-
 // Create an axios instance with base URL and credentials
 export const api = axios.create({
   baseURL: env.apiBaseUrl,
-  withCredentials: true, // Important for sending cookies (refresh token, csrf token)
+  withCredentials: true, // Important for sending cookies (refresh token)
 });
 
-// Request interceptor to add access token and CSRF token to headers
+// Request interceptor to add access token
 api.interceptors.request.use(
-  async (config) => {
+  (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    // For state-changing methods, ensure we have a CSRF token
-    const method = (config.method || 'get').toLowerCase();
-    if (method !== 'get' && method !== 'head' && method !== 'options') {
-      if (!csrfToken) {
-        await fetchCsrfToken();
-      }
-      if (csrfToken) {
-        config.headers = config.headers ?? {};
-        config.headers['x-csrf-token'] = csrfToken;
-      }
-    }
-
     return config;
   },
   (error) => {
@@ -121,7 +94,6 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
-        csrfToken = null;
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
           window.location.href = '/login?session_expired=true';
         }

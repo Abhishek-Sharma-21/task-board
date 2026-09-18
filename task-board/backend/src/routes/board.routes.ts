@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { CreateBoardInput, CreateColumnInput, ReorderColumnsInput } from '../schemas.js';
 import * as controller from '../controllers/board.controller.js';
 import { authenticate, requireProjectRole, requireBoardRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 import { validateBody } from '../validators/index.js';
 
 const router = Router();
@@ -12,7 +11,6 @@ const router = Router();
 router.post(
   '/projects/:projectId/boards',
   authenticate,
-  csrfProtection,
   requireProjectRole('admin', 'projectId'),
   validateBody(CreateBoardInput),
   controller.createBoard
@@ -39,7 +37,6 @@ router.get(
 router.put(
   '/boards/:id',
   authenticate,
-  csrfProtection,
   requireBoardRole('admin', 'id'),
   validateBody(CreateBoardInput.partial()),
   controller.updateBoard
@@ -59,7 +56,6 @@ router.delete(
 router.post(
   '/boards/:boardId/columns',
   authenticate,
-  csrfProtection,
   requireBoardRole('admin', 'boardId'),
   validateBody(CreateColumnInput),
   controller.createColumn
@@ -77,7 +73,6 @@ router.get(
 router.put(
   '/boards/:boardId/columns/reorder',
   authenticate,
-  csrfProtection,
   requireBoardRole('admin', 'boardId'),
   validateBody(ReorderColumnsInput),
   controller.reorderColumns
@@ -87,7 +82,6 @@ router.put(
 router.put(
   '/boards/:boardId/columns/:columnId',
   authenticate,
-  csrfProtection,
   requireBoardRole('admin', 'boardId'),
   validateBody(CreateColumnInput),
   controller.updateColumn

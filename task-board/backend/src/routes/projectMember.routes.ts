@@ -2,7 +2,6 @@ import { Router } from 'express';
 import * as controller from '../controllers/projectMember.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireProjectRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 
 const router = Router();
 
@@ -18,7 +17,6 @@ router.get(
 router.post(
   '/projects/:projectId/members',
   authenticate,
-  csrfProtection,
   requireProjectRole('admin', 'projectId'),
   controller.addProjectMember
 );
@@ -27,7 +25,6 @@ router.post(
 router.delete(
   '/projects/:projectId/members/:userId',
   authenticate,
-  csrfProtection,
   requireProjectRole('admin', 'projectId'),
   controller.removeProjectMember
 );
@@ -36,7 +33,6 @@ router.delete(
 router.patch(
   '/projects/:projectId/head',
   authenticate,
-  csrfProtection,
   requireProjectRole('admin', 'projectId'),
   controller.setProjectHead
 );

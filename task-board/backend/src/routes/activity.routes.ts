@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import * as controller from '../controllers/activity.controller.js';
 import { authenticate, requireWorkspaceRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 
 const router = Router();
 
@@ -31,7 +30,6 @@ router.get(
 router.post(
   '/workspaces/:workspaceId/activity/prune',
   authenticate,
-  csrfProtection,
   requireWorkspaceRole('admin', 'workspaceId'),
   controller.pruneWorkspaceActivity
 );

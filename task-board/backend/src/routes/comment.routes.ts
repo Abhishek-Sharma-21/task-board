@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { CreateCommentInput } from '../schemas.js';
 import * as controller from '../controllers/comment.controller.js';
 import { authenticate, requireTaskRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 import { validateBody } from '../validators/index.js';
 
 const router = Router();
@@ -11,7 +10,6 @@ const router = Router();
 router.post(
   '/tasks/:taskId/comments',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'taskId'),
   validateBody(CreateCommentInput),
   controller.createComment
@@ -29,7 +27,6 @@ router.get(
 router.put(
   '/comments/:id',
   authenticate,
-  csrfProtection,
   controller.updateComment
 );
 
@@ -37,7 +34,6 @@ router.put(
 router.delete(
   '/comments/:id',
   authenticate,
-  csrfProtection,
   controller.deleteComment
 );
 

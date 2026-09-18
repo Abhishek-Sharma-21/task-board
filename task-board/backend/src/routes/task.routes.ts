@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { CreateTaskInput, UpdateTaskInput, MoveTaskInput } from '../schemas.js';
 import * as controller from '../controllers/task.controller.js';
 import { authenticate, requireBoardRole, requireTaskRole, requireWorkspaceRole, requireChecklistItemRole } from '../middleware/auth.js';
-import { csrfProtection } from '../middleware/csrf.js';
 import { validateBody } from '../validators/index.js';
 
 const router = Router();
@@ -12,7 +11,6 @@ const router = Router();
 router.post(
   '/boards/:boardId/tasks',
   authenticate,
-  csrfProtection,
   requireBoardRole('member', 'boardId'),
   validateBody(CreateTaskInput),
   controller.createTask
@@ -39,7 +37,6 @@ router.get(
 router.put(
   '/tasks/:id',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   validateBody(UpdateTaskInput),
   controller.updateTask
@@ -49,7 +46,6 @@ router.put(
 router.put(
   '/tasks/:id/move',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   validateBody(MoveTaskInput),
   controller.moveTask
@@ -67,21 +63,18 @@ router.delete(
 router.patch(
   '/tasks/:id/archive',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   controller.archiveTask
 );
 router.post(
   '/tasks/:id/archive',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   controller.archiveTask
 );
 router.put(
   '/tasks/:id/archive',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   controller.archiveTask
 );
@@ -90,7 +83,6 @@ router.put(
 router.post(
   '/tasks/:id/duplicate',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   controller.duplicateTask
 );
@@ -100,7 +92,6 @@ router.post(
 router.post(
   '/tasks/:taskId/checklists',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'taskId'),
   controller.addChecklistItem
 );
@@ -109,7 +100,6 @@ router.post(
 router.patch(
   '/checklists/:itemId',
   authenticate,
-  csrfProtection,
   requireChecklistItemRole('member', 'itemId'),
   controller.updateChecklistItem
 );
@@ -118,7 +108,6 @@ router.patch(
 router.delete(
   '/checklists/:itemId',
   authenticate,
-  csrfProtection,
   requireChecklistItemRole('member', 'itemId'),
   controller.deleteChecklistItem
 );
@@ -134,7 +123,6 @@ router.get(
 router.post(
   '/workspaces/:workspaceId/tasks/history/prune',
   authenticate,
-  csrfProtection,
   requireWorkspaceRole('admin', 'workspaceId'),
   controller.pruneCompletedTasks
 );
@@ -143,7 +131,6 @@ router.post(
 router.post(
   '/tasks/:id/restore',
   authenticate,
-  csrfProtection,
   requireTaskRole('member', 'id'),
   controller.restoreTask
 );
