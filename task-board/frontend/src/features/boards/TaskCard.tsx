@@ -31,13 +31,26 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
   const getPriorityBadgeStyle = (priority: string) => {
     switch (priority) {
       case 'Urgent':
-        return 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-900/50';
+        return 'bg-priority-urgent-bg text-priority-urgent border-priority-urgent-border border-l-priority-urgent';
       case 'High':
-        return 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/50';
+        return 'bg-priority-high-bg text-priority-high border-priority-high-border border-l-priority-high';
       case 'Medium':
-        return 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50';
+        return 'bg-priority-medium-bg text-priority-medium border-priority-medium-border border-l-priority-medium';
       default:
-        return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50';
+        return 'bg-priority-low-bg text-priority-low border-priority-low-border border-l-priority-low';
+    }
+  };
+
+  const getPriorityLeftBorder = (priority: string) => {
+    switch (priority) {
+      case 'Urgent':
+        return 'border-l-[3px] border-l-priority-urgent';
+      case 'High':
+        return 'border-l-[3px] border-l-priority-high';
+      case 'Medium':
+        return 'border-l-[3px] border-l-priority-medium';
+      default:
+        return 'border-l-[3px] border-l-priority-low';
     }
   };
 
@@ -45,7 +58,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
     if (!date) return null;
     const dateStr = parseLocalDate(date);
     const [, m, d] = dateStr.split('-');
-    const monthNames = ['Sep', 'Sep', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${monthNames[parseInt(m) - 1]} ${parseInt(d)}`;
   };
 
@@ -91,7 +104,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`group select-none border border-border bg-surface-elevated p-3.5 hover:border-primary/60 transition-all rounded-sm shadow-sm flex flex-col space-y-3 font-sans ${
+      className={`group select-none border border-border bg-surface-elevated p-3.5 hover:border-primary/60 hover:shadow-theme-md transition-all rounded-sm shadow-sm flex flex-col space-y-2.5 font-sans border-l-[3px] ${getPriorityLeftBorder(task.priority)} ${
         task.isArchived
           ? 'opacity-60 bg-surface/50 border-dashed'
           : isDone
@@ -118,7 +131,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
 
       {/* Title */}
       <h4
-        className={`text-xs sm:text-sm font-bold text-text-primary tracking-tight leading-snug group-hover:text-primary transition-colors line-clamp-2 break-words min-w-0 ${
+        className={`text-[11px] sm:text-xs font-bold text-text-primary tracking-tight leading-snug group-hover:text-primary transition-colors line-clamp-2 break-words min-w-0 ${
           isDone ? 'line-through text-text-muted' : ''
         }`}
       >
@@ -138,7 +151,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({ task, onClick, isDragDisab
       )}
 
       {/* Middle Row: Due Date & Assignee Info */}
-      <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2.5 text-[10px] font-mono text-text-muted">
+      <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2 text-[10px] font-mono text-text-muted">
         <div className="flex items-center space-x-3">
           {task.dueDate && (
             <div className="flex items-center space-x-1">

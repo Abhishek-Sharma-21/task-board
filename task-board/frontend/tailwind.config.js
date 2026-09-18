@@ -7,6 +7,10 @@ export default {
   darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
       colors: {
         // ── Page / Surface backgrounds ──────────────────────────────
         page:    'var(--bg-page)',
@@ -149,6 +153,23 @@ export default {
         'theme-md': 'var(--shadow-md)',
         'theme-lg': 'var(--shadow-lg)',
         'theme-xl': 'var(--shadow-xl)',
+        'theme-header': '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06)',
+      },
+
+      // ── Keyframes ────────────────────────────────────────────────
+      keyframes: {
+        'fade-in': {
+          '0%': { opacity: '0', transform: 'translateY(-4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'slide-down': {
+          '0%': { maxHeight: '0', opacity: '0' },
+          '100%': { maxHeight: '500px', opacity: '1' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 150ms ease-out',
+        'slide-down': 'slide-down 200ms ease-out',
       },
     },
   },

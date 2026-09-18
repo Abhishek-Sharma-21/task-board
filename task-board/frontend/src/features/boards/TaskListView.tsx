@@ -23,13 +23,13 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ tasks, columns, onOp
   const getPriorityStyle = (priority: string) => {
     switch (priority) {
       case 'Urgent':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
+        return 'bg-priority-urgent-bg text-priority-urgent border-priority-urgent-border';
       case 'High':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+        return 'bg-priority-high-bg text-priority-high border-priority-high-border';
       case 'Medium':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        return 'bg-priority-medium-bg text-priority-medium border-priority-medium-border';
       default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+        return 'bg-priority-low-bg text-priority-low border-priority-low-border';
     }
   };
 
@@ -114,7 +114,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ tasks, columns, onOp
                   {task.dueDate ? (
                     <span
                       className={`text-[11px] ${
-                        isOverdue(task.dueDate) ? 'text-red-400 font-bold' : 'text-text-muted'
+                        isOverdue(task.dueDate) ? 'text-danger font-bold' : 'text-text-muted'
                       }`}
                     >
                       {new Date(task.dueDate).toLocaleDateString()}
@@ -138,7 +138,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ tasks, columns, onOp
                     </button>
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded border border-red-500/20 transition-colors"
+                      className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold bg-danger-light hover:bg-danger/20 text-danger rounded border border-danger/20 transition-colors"
                       title="Delete task"
                     >
                       Delete

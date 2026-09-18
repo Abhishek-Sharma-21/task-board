@@ -94,22 +94,22 @@ export const OfflineSyncBanner: React.FC = () => {
       aria-live="polite"
       className={`w-full py-2 px-4 text-xs font-mono flex items-center justify-between transition-colors ${
         !isOnline
-          ? 'bg-amber-950/80 text-amber-300 border-b border-amber-800/50'
+          ? 'bg-warning-light text-warning border-b border-warning/30'
           : syncFailed
-          ? 'bg-red-950/80 text-red-300 border-b border-red-800/50'
-          : 'bg-primary/20 text-primary border-b border-primary/30'
+          ? 'bg-danger-light text-danger border-b border-danger/30'
+          : 'bg-primary-light text-primary border-b border-primary/30'
       }`}
     >
       <div className="flex items-center space-x-2">
         <span
           className={`w-2 h-2 rounded-full ${
             !isOnline
-              ? 'bg-amber-400 animate-pulse'
+              ? 'bg-warning animate-pulse'
               : isSyncing
-              ? 'bg-blue-400 animate-ping'
+              ? 'bg-info animate-ping'
               : syncFailed
-              ? 'bg-red-400'
-              : 'bg-emerald-400'
+              ? 'bg-danger'
+              : 'bg-success'
           }`}
         />
         <span>

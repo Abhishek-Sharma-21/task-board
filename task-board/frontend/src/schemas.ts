@@ -42,6 +42,16 @@ export const LoginInput = z.object({
 });
 export type LoginInput = z.infer<typeof LoginInput>;
 
+export const ChangePasswordInput = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+  confirmPassword: z.string().min(1),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
+export type ChangePasswordInput = z.infer<typeof ChangePasswordInput>;
+
 // ---------- Auth Responses ----------
 export const UserSchema = z.object({
   id: z.string(),

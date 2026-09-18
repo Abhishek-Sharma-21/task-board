@@ -5,6 +5,7 @@ import { useAuthStore } from '../auth/authStore';
 import { useProjectMemberStore } from '../projects/projectMemberStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
 import { getSocket } from '../../sockets/socket';
+import { Search, CalendarDays, Maximize2 } from 'lucide-react';
 
 interface TaskChatViewProps {
   task: Task;
@@ -57,6 +58,20 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
   const [editingText, setEditingText] = useState('');
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
   const [showNewMessagesBtn, setShowNewMessagesBtn] = useState(false);
+
+  // Mention state
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filter members for mention dropdown
+  const mentionMembers = useMemo(() => {
+    const allMembers = projectMembers.filter((m) => m && m.name != null);
+    if (!mentionQuery) return allMembers;
+    const q = mentionQuery.toLowerCase();
+    return allMembers.filter((m) => m.name.toLowerCase().includes(q));
+  }, [projectMembers, mentionQuery]);
 
   const messageListRef = useRef<HTMLDivElement>(null);
   const isScrolledToBottomRef = useRef(true);
@@ -165,22 +180,71 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Mention dropdown keyboard navigation
+    if (showMentionDropdown && mentionMembers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionMembers.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + mentionMembers.length) % mentionMembers.length);
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        insertMention(mentionMembers[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowMentionDropdown(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputBody(e.target.value);
-    if (!currentUser || !task.boardId) return;
+  const insertMention = (member: { id: string; name: string }) => {
+    const cursorPos = inputBody.length;
+    const textBeforeCursor = inputBody.substring(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+    if (atMatch) {
+      const beforeAt = textBeforeCursor.substring(0, atMatch.index);
+      const newText = beforeAt + '@' + member.name + ' ';
+      setInputBody(newText);
+    }
+    setShowMentionDropdown(false);
+    setMentionQuery('');
+  };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInputBody(val);
+
+    // Detect @mention trigger
+    const cursorPos = e.target.selectionStart || val.length;
+    const textBeforeCursor = val.substring(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+    if (atMatch) {
+      setMentionQuery(atMatch[1]);
+      setShowMentionDropdown(true);
+      setMentionIndex(0);
+    } else {
+      setShowMentionDropdown(false);
+      setMentionQuery('');
+    }
+
+    if (!currentUser || !task.boardId) return;
     const socket = getSocket();
     if (!isTypingRef.current) {
       isTypingRef.current = true;
       socket.emit('typing', { boardId: task.boardId, taskId: task.id, name: currentUser.name });
     }
-
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       stopTypingImmediate();
@@ -324,7 +388,7 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
             title="Search Messages"
             className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-active rounded-sm transition-colors"
           >
-            🔍
+            <Search className="w-4 h-4" />
           </button>
 
           {/* Jump to Date Button */}
@@ -336,7 +400,7 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
             title="Jump to Date"
             className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-active rounded-sm transition-colors"
           >
-            📅
+            <CalendarDays className="w-4 h-4" />
           </button>
 
           {/* Expand Workspace Button */}
@@ -607,14 +671,40 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
       )}
 
       {/* Message Input Composer */}
-      <div className="border-t border-border p-3 bg-surface-hover shrink-0 font-mono">
+      <div className="border-t border-border p-3 bg-surface-hover shrink-0 font-mono relative">
+        {/* Mention Dropdown */}
+        {showMentionDropdown && mentionMembers.length > 0 && (
+          <div
+            ref={mentionDropdownRef}
+            className="absolute bottom-full left-3 right-3 mb-1 bg-surface-elevated border border-border rounded-sm shadow-theme-lg max-h-40 overflow-y-auto z-30"
+          >
+            {mentionMembers.slice(0, 8).map((m, idx) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => insertMention(m)}
+                className={`w-full text-left px-3 py-2 text-xs font-mono flex items-center gap-2 transition-colors ${
+                  idx === mentionIndex
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-text-primary hover:bg-surface-hover'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-surface-active border border-border flex items-center justify-center text-[8px] font-bold text-text-secondary shrink-0">
+                  {m.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
+                </span>
+                <span className="font-bold">{m.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex gap-2 items-end">
           <textarea
             rows={2}
             value={inputBody}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="TYPE A MESSAGE... (PRESS ENTER TO SEND, SHIFT+ENTER FOR NEW LINE)"
+            placeholder="TYPE A MESSAGE... (@ to mention, ENTER to send)"
             className="flex-1 bg-input border-2 border-border focus:border-primary rounded-sm p-2.5 text-xs text-text-primary focus:outline-none placeholder-text-faint resize-none leading-relaxed"
           />
           <button

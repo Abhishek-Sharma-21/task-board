@@ -204,10 +204,10 @@ export const Home: React.FC = () => {
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <div className={`w-1 h-8 rounded-full ${
-                      health.health === 'overdue' ? 'bg-red-500' :
-                      health.health === 'needs_attention' ? 'bg-amber-500' :
-                      health.health === 'blocked' ? 'bg-red-500' :
-                      'bg-green-500'
+                      health.health === 'overdue' ? 'bg-danger' :
+                      health.health === 'needs_attention' ? 'bg-warning' :
+                      health.health === 'blocked' ? 'bg-danger' :
+                      'bg-success'
                     }`}></div>
                     <div className="min-w-0">
                       <h4 className="text-sm font-bold text-text-primary truncate">{task.title}</h4>
@@ -227,10 +227,10 @@ export const Home: React.FC = () => {
                       {health.label}
                     </span>
                     <span className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-sm border ${
-                      task.priority === 'Urgent' ? 'bg-red-100 text-red-700 border-red-200' :
-                      task.priority === 'High' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                      task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                      'bg-blue-100 text-blue-700 border-blue-200'
+                      task.priority === 'Urgent' ? 'bg-priority-urgent-bg text-priority-urgent border-priority-urgent-border' :
+                      task.priority === 'High' ? 'bg-priority-high-bg text-priority-high border-priority-high-border' :
+                      task.priority === 'Medium' ? 'bg-priority-medium-bg text-priority-medium border-priority-medium-border' :
+                      'bg-priority-low-bg text-priority-low border-priority-low-border'
                     }`}>
                       {task.priority}
                     </span>

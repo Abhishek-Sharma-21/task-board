@@ -425,7 +425,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-transparent border-0 border-b-2 border-transparent hover:border-border focus:border-primary text-lg font-black uppercase text-text-primary py-1 focus:outline-none transition-colors"
+              disabled={isSaving}
+              className="w-full bg-transparent border-0 border-b-2 border-transparent hover:border-border focus:border-primary text-lg font-black uppercase text-text-primary py-1 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -439,7 +440,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               <select
                 value={priority}
                 onChange={handlePriorityChange}
-                className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono"
+                disabled={isSaving}
+                className="w-full bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary uppercase tracking-wider font-mono disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
@@ -468,8 +470,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
                             setAssigneeIds(assigneeIds.filter(id => id !== member.id));
                           }
                         }}
-                        disabled={!canAssign}
-                        className="rounded-xs text-primary focus:ring-0"
+                        disabled={!canAssign || isSaving}
+                        className="rounded-xs text-primary focus:ring-0 disabled:cursor-not-allowed"
                       />
                       <span className="text-xs font-bold text-text-secondary">
                         {member.name} {member.role === 'head' ? '(HEAD)' : ''}
@@ -489,7 +491,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               type="date"
               value={dueDate}
               onChange={handleDueDateChange}
-              className="bg-input border border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm w-full uppercase"
+              disabled={isSaving}
+              className="bg-input border border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm w-full uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -503,7 +506,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="ENTER WORK DESCRIPTION OR REQUIREMENTS..."
-              className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none leading-relaxed"
+              disabled={isSaving}
+              className="w-full bg-input border-2 border-border rounded-sm py-2 px-3 text-xs font-mono text-text-primary focus:outline-none focus:border-primary placeholder-text-faint resize-none leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -553,11 +557,13 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
                 value={newChecklistText}
                 onChange={(e) => setNewChecklistText(e.target.value)}
                 placeholder="+ Add checklist item..."
-                className="flex-1 bg-input border border-border text-xs font-mono py-1.5 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm"
+                disabled={isSaving}
+                className="flex-1 bg-input border border-border text-xs font-mono py-1.5 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-primary text-white text-xs font-mono font-bold uppercase rounded-sm hover:bg-primary-hover transition-colors"
+                disabled={isSaving}
+                className="px-3 py-1.5 bg-primary text-white text-xs font-mono font-bold uppercase rounded-sm hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add
               </button>
@@ -592,7 +598,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ task, onClose, onExpandW
               onChange={(e) => setLabelText(e.target.value)}
               onKeyDown={handleAddLabel}
               placeholder="TYPE TAG & PRESS ENTER..."
-              className="w-full bg-input border border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm"
+              disabled={isSaving}
+              className="w-full bg-input border border-border text-xs font-mono py-2 px-3 text-text-primary focus:outline-none focus:border-primary rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 

@@ -173,3 +173,22 @@ export async function getPublicUser(userId: string): Promise<PublicUser | null> 
   const u = await prisma.user.findUnique({ where: { id: userId } });
   return u ? toPublic(u) : null;
 }
+
+export async function changePassword(
+  userId: string,
+  input: { currentPassword: string; newPassword: string },
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new HttpError(404, 'USER_NOT_FOUND', 'User not found');
+  }
+  const ok = await bcrypt.compare(input.currentPassword, user.passwordHash);
+  if (!ok) {
+    throw new HttpError(400, 'INVALID_PASSWORD', 'Current password is incorrect');
+  }
+  const passwordHash = await hashPassword(input.newPassword);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}

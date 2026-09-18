@@ -318,11 +318,11 @@ export const AppLayout: React.FC = () => {
               <span className="text-[10px] uppercase font-mono tracking-widest text-text-muted">
                 WORKSPACE
               </span>
-              <button
-                onClick={() => setIsWorkspaceModalOpen(true)}
-                className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold"
-                aria-label="New Workspace"
-              >
+                <button
+                  onClick={() => setIsWorkspaceModalOpen(true)}
+                  className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold btn-press"
+                  aria-label="New Workspace"
+                >
                 + NEW
               </button>
             </div>
@@ -355,7 +355,7 @@ export const AppLayout: React.FC = () => {
               {userRole !== 'member' && (
                 <button
                   onClick={() => setIsProjectModalOpen(true)}
-                  className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold"
+                  className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold btn-press"
                   disabled={!activeWorkspace}
                   aria-label="New Project"
                 >
@@ -397,8 +397,8 @@ export const AppLayout: React.FC = () => {
                 {userRole !== 'member' && (
                   <button
                     onClick={() => setIsBoardModalOpen(true)}
-                    className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold"
-                    aria-label="New Board"
+                  className="text-[10px] font-mono text-primary hover:text-primary-hover font-bold btn-press"
+                  aria-label="New Board"
                   >
                     + NEW
                   </button>
@@ -430,46 +430,46 @@ export const AppLayout: React.FC = () => {
           <nav className="space-y-1 pt-4 border-t border-border-subtle">
             <button
               onClick={() => navigate('/')}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-xs font-bold transition-colors border-l-2 ${
                 location.pathname === '/' 
-                  ? 'bg-surface-active border border-border text-text-primary' 
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+                  ? 'bg-surface-active border-l-primary text-text-primary' 
+                  : 'border-l-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover'
               }`}
             >
-              <Home className="w-4 h-4" />
+              <Home className="w-4 h-4 shrink-0" />
               <span>Home</span>
             </button>
             <button
               onClick={() => navigate('/my-work')}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-xs font-bold transition-colors border-l-2 ${
                 location.pathname === '/my-work' 
-                  ? 'bg-surface-active border border-border text-text-primary' 
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+                  ? 'bg-surface-active border-l-primary text-text-primary' 
+                  : 'border-l-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-4 h-4 shrink-0" />
               <span>My Work</span>
             </button>
             <button
               onClick={() => navigate('/calendar')}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-xs font-bold transition-colors border-l-2 ${
                 location.pathname === '/calendar' 
-                  ? 'bg-surface-active border border-border text-text-primary' 
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+                  ? 'bg-surface-active border-l-primary text-text-primary' 
+                  : 'border-l-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover'
               }`}
             >
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-4 h-4 shrink-0" />
               <span>Calendar</span>
             </button>
             <button
               onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-sm font-bold transition-colors ${
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-xs font-bold transition-colors border-l-2 ${
                 isNotificationOpen 
-                  ? 'bg-surface-active border border-border text-text-primary' 
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+                  ? 'bg-surface-active border-l-primary text-text-primary' 
+                  : 'border-l-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover'
               }`}
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-4 h-4 shrink-0" />
               <span>Notifications</span>
               {unreadCount > 0 && (
                 <span className="ml-auto text-[9px] font-mono bg-primary text-white px-1.5 py-0.5 rounded-full">{unreadCount}</span>
@@ -481,31 +481,31 @@ export const AppLayout: React.FC = () => {
           <div className="pt-4 border-t border-border-subtle">
             <button
               onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-bold text-text-muted hover:text-text-secondary transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-text-muted hover:text-text-secondary transition-colors"
             >
               <div className="flex items-center space-x-3">
                 <Settings className="w-4 h-4" />
                 <span>Settings & Admin</span>
               </div>
-              {isSettingsExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSettingsExpanded ? 'rotate-0' : '-rotate-90'}`} />
             </button>
-            {isSettingsExpanded && (
+            <div className={`overflow-hidden transition-all duration-200 ease-in-out ${isSettingsExpanded ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
               <div className="space-y-1 mt-1">
                 <button
                   onClick={() => {
                     const wsId = activeWorkspace?.id || workspaces[0]?.id;
                     if (wsId) navigate(`/workspaces/${wsId}/settings`);
                   }}
-                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
+                  className="w-full flex items-center space-x-3 px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
                 >
-                  <Settings className="w-3.5 h-3.5" />
+                  <Settings className="w-3.5 h-3.5 shrink-0" />
                   <span>Workspace Settings</span>
                 </button>
                 <button
                   onClick={() => setIsTeamModalOpen(true)}
-                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
+                  className="w-full flex items-center space-x-3 px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
                 >
-                  <Users className="w-3.5 h-3.5" />
+                  <Users className="w-3.5 h-3.5 shrink-0" />
                   <span>Team Settings</span>
                 </button>
                 <button
@@ -513,45 +513,45 @@ export const AppLayout: React.FC = () => {
                     const wsId = activeWorkspace?.id || workspaces[0]?.id;
                     if (wsId) navigate(`/workspaces/${wsId}/activity`);
                   }}
-                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
+                  className="w-full flex items-center space-x-3 px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-sm transition-colors"
                 >
-                  <Activity className="w-3.5 h-3.5" />
+                  <Activity className="w-3.5 h-3.5 shrink-0" />
                   <span>Activity History</span>
                 </button>
                 <button
                   onClick={() => navigate('/workflow')}
-                  className="w-full flex items-center space-x-3 px-3 py-2 text-xs font-bold text-primary/60 hover:text-primary rounded-sm transition-colors"
+                  className="w-full flex items-center space-x-3 px-3 py-1.5 text-[11px] font-bold text-primary/60 hover:text-primary rounded-sm transition-colors"
                 >
-                  <Folder className="w-3.5 h-3.5" />
+                  <Folder className="w-3.5 h-3.5 shrink-0" />
                   <span>How it works</span>
                 </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
         {/* Bottom Section */}
-        <div className="space-y-4 pt-6 border-t border-border mt-8">
+        <div className="space-y-3 pt-6 border-t border-border mt-8">
           <div className="text-[10px] font-mono text-text-faint flex items-center space-x-2">
             <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
-            <span className="capitalize">{activeWorkspace?.name || 'Workspace'}</span>
+            <span className="capitalize truncate">{activeWorkspace?.name || 'Workspace'}</span>
           </div>
 
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="flex items-center space-x-2 text-xs font-mono text-text-muted hover:text-primary transition-colors w-full text-left"
+            className="flex items-center space-x-2 text-[11px] font-mono text-text-muted hover:text-primary transition-colors w-full text-left btn-press"
           >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
 
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="flex items-center space-x-2 text-xs font-mono text-text-muted hover:text-primary transition-colors w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center space-x-2 text-[11px] font-mono text-text-muted hover:text-primary transition-colors w-full text-left btn-press disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoggingOut ? <Spinner /> : <LogOut className="w-4 h-4" />}
+            {isLoggingOut ? <Spinner /> : <LogOut className="w-3.5 h-3.5" />}
             <span>{isLoggingOut ? 'Logging out...' : 'Log out'}</span>
           </button>
         </div>
@@ -560,12 +560,12 @@ export const AppLayout: React.FC = () => {
       {/* Main Body Panel */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header Bar */}
-        <header className="h-16 bg-header border-b border-border flex items-center justify-between px-4 sm:px-6 md:px-8 gap-3">
+        <header className="h-16 bg-header backdrop-blur-sm shadow-theme-header border-b border-border flex items-center justify-between px-4 sm:px-6 md:px-8 gap-3 sticky top-0 z-30">
           <div className="flex items-center space-x-3 min-w-0">
             {/* Mobile Sidebar Hamburger Toggle */}
             <button
               onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-              className="p-1.5 text-text-muted hover:text-text-primary border border-border rounded-sm md:hidden shrink-0"
+              className="p-1.5 text-text-muted hover:text-text-primary border border-border rounded-sm md:hidden shrink-0 btn-press"
               aria-label="Open Navigation Menu"
             >
               <Menu className="w-5 h-5" />
@@ -574,7 +574,7 @@ export const AppLayout: React.FC = () => {
               <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-widest text-text-faint block leading-tight">
                 PROJECT / PRODUCT
               </span>
-              <span className="text-xs sm:text-sm font-black uppercase tracking-tight text-text-primary truncate block">
+              <span className="text-xs sm:text-sm font-black tracking-tight text-text-primary truncate block">
                 {activeProject?.name || 'Select Project'}
               </span>
             </div>
@@ -586,10 +586,10 @@ export const AppLayout: React.FC = () => {
               {/* Members Button */}
               <button
                 onClick={() => setIsMembersModalOpen(true)}
-                className="flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors p-1"
+                className="flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors p-1 btn-press"
                 title="Workspace Members"
               >
-                <Users className="w-5 h-5" />
+                <Users className="w-4 h-4" />
                 <span className="text-[10px] font-mono font-bold hidden sm:inline">{members.length}</span>
               </button>
 
@@ -608,13 +608,13 @@ export const AppLayout: React.FC = () => {
               {/* User Profile Badge & Settings */}
               <div
                 onClick={() => navigate(`/workspaces/${activeWorkspace?.id || workspaces[0]?.id || ''}/settings`)}
-                className="flex items-center space-x-2 sm:space-x-3 bg-surface-hover border border-border py-1.5 px-2.5 rounded-sm shrink-0 cursor-pointer hover:border-primary transition-colors"
+                className="flex items-center space-x-2 sm:space-x-3 bg-surface-hover border border-border py-1.5 px-2.5 rounded-sm shrink-0 cursor-pointer hover:border-primary hover:bg-surface-active transition-colors btn-press"
                 title="Open Settings & Profile"
               >
-                <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-xs text-white font-mono shrink-0">
+                <div className="w-6 h-6 bg-primary flex items-center justify-center rounded-sm font-bold text-[10px] text-white font-mono shrink-0">
                   {getInitials(user.name)}
                 </div>
-                <span className="text-xs font-bold text-text-secondary hidden sm:inline truncate max-w-[100px] md:max-w-[140px]">
+                <span className="text-[11px] font-bold text-text-secondary hidden sm:inline truncate max-w-[100px] md:max-w-[140px]">
                   {user.name}
                 </span>
                 <span className="text-[9px] font-mono border border-border text-text-muted px-1 py-0.5 rounded-sm uppercase shrink-0">

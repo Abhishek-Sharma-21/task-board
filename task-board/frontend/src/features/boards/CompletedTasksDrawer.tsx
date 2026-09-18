@@ -17,13 +17,13 @@ const TASKS_PER_PAGE = 10;
 const getPriorityBadgeStyle = (priority: string) => {
   switch (priority) {
     case 'Urgent':
-      return 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-900/50';
+      return 'bg-priority-urgent-bg text-priority-urgent border-priority-urgent-border';
     case 'High':
-      return 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/50';
+      return 'bg-priority-high-bg text-priority-high border-priority-high-border';
     case 'Medium':
-      return 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50';
+      return 'bg-priority-medium-bg text-priority-medium border-priority-medium-border';
     default:
-      return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50';
+      return 'bg-priority-low-bg text-priority-low border-priority-low-border';
   }
 };
 

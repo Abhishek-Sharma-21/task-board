@@ -20,10 +20,10 @@ interface TaskSection {
 
 const PriorityBadge: React.FC<{ priority: string }> = ({ priority }) => {
   const colors: Record<string, string> = {
-    'Low': 'bg-blue-100 text-blue-700 border-blue-200',
-    'Medium': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    'High': 'bg-orange-100 text-orange-700 border-orange-200',
-    'Urgent': 'bg-red-100 text-red-700 border-red-200',
+    'Low': 'bg-priority-low-bg text-priority-low border-priority-low-border',
+    'Medium': 'bg-priority-medium-bg text-priority-medium border-priority-medium-border',
+    'High': 'bg-priority-high-bg text-priority-high border-priority-high-border',
+    'Urgent': 'bg-priority-urgent-bg text-priority-urgent border-priority-urgent-border',
   };
   return (
     <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm border ${colors[priority] || colors['Medium']}`}>
@@ -137,40 +137,40 @@ export const MyWorkPage: React.FC = () => {
         title: 'TODAY',
         icon: <CalendarClock className="w-4 h-4" />,
         tasks: todayTasks,
-        color: 'text-amber-600',
-        bgColor: 'bg-amber-50 border-amber-200',
+        color: 'text-warning',
+        bgColor: 'bg-warning-light border-warning/20',
       },
       {
         id: 'overdue',
         title: 'OVERDUE',
         icon: <AlertTriangle className="w-4 h-4" />,
         tasks: overdueTasks,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50 border-red-200',
+        color: 'text-danger',
+        bgColor: 'bg-danger-light border-danger/20',
       },
       {
         id: 'upcoming',
         title: 'UPCOMING',
         icon: <Clock className="w-4 h-4" />,
         tasks: upcomingTasks,
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-50 border-blue-200',
+        color: 'text-info',
+        bgColor: 'bg-info-light border-info/20',
       },
       {
         id: 'waiting',
         title: 'WAITING FOR',
         icon: <UserCheck className="w-4 h-4" />,
         tasks: waitingTasks,
-        color: 'text-purple-600',
-        bgColor: 'bg-purple-50 border-purple-200',
+        color: 'text-primary',
+        bgColor: 'bg-primary-light border-primary/20',
       },
       {
         id: 'blocked',
         title: 'BLOCKED',
         icon: <Ban className="w-4 h-4" />,
         tasks: blockedTasks,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50 border-red-200',
+        color: 'text-danger',
+        bgColor: 'bg-danger-light border-danger/20',
       },
       {
         id: 'completed',
