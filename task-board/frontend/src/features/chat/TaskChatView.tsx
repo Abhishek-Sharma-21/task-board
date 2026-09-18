@@ -4,6 +4,7 @@ import { useTaskChatStore } from './taskChatStore';
 import { useAuthStore } from '../auth/authStore';
 import { useProjectMemberStore } from '../projects/projectMemberStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
+import { useConfirmStore } from '../../components/common/confirmStore';
 import { getSocket } from '../../sockets/socket';
 import { Search, CalendarDays } from 'lucide-react';
 
@@ -300,7 +301,13 @@ export const TaskChatView: React.FC<TaskChatViewProps> = ({ task, onExpand, isEx
   };
 
   const handleDeleteMsg = async (msgId: string) => {
-    if (!window.confirm('Delete this message?')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm',
+      message: 'Delete this message?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await deleteMessage(task.id, msgId);
     } catch (err) {

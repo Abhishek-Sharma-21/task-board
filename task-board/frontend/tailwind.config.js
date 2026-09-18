@@ -9,7 +9,9 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // font-mono maps to Inter for clean UI — use font-mono-actual for real monospace
+        mono: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        'mono-actual': ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
         // ── Page / Surface backgrounds ──────────────────────────────

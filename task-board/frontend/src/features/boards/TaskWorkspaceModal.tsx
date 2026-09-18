@@ -8,6 +8,8 @@ import { TaskChatView } from '../chat/TaskChatView';
 import { CommentSection } from '../comments/CommentSection';
 import { useActivityStore, Activity } from '../activities/activityStore';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { useToastStore } from '../../components/common/toastStore';
+import { api } from '../../api/client';
 
 interface TaskWorkspaceModalProps {
   task: Task | null;
@@ -123,18 +125,31 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
   const handleSaveChanges = async () => {
     if (!task || !isDirty || isSaving || !title.trim()) return;
     setIsSaving(true);
+
+    const payload = {
+      title: title.trim(),
+      description,
+      priority,
+      assigneeIds,
+      dueDate: dueDate ? dueDate : null,
+      labels,
+    };
+
     try {
-      await updateTask(task.id, {
-        title: title.trim(),
-        description,
-        priority,
-        assigneeIds,
-        dueDate: dueDate ? dueDate : null,
-        labels,
-        expectedVersion: task.version,
-      });
+      await updateTask(task.id, { ...payload, expectedVersion: task.version });
     } catch (err: any) {
-      alert(err.message || 'Failed to save task changes');
+      if (err.response?.data?.errorCode === 'VERSION_CONFLICT') {
+        try {
+          const { data } = await api.get<{ success: boolean; data: Task }>(`/tasks/${task.id}`);
+          const freshTask = data.data;
+          await updateTask(task.id, { ...payload, expectedVersion: freshTask.version });
+        } catch {
+          useToastStore.getState().addToast({ message: 'Task was updated by someone else. Please refresh.', type: 'error' });
+        }
+      } else {
+        const msg = err.response?.data?.message || err.message || 'Failed to save task changes';
+        useToastStore.getState().addToast({ message: msg, type: 'error' });
+      }
     } finally {
       setIsSaving(false);
     }
@@ -182,7 +197,8 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
       await duplicateTask(task.id);
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Failed to duplicate task');
+      const msg = err.response?.data?.message || err.message || 'Failed to duplicate task';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
@@ -201,7 +217,8 @@ export const TaskWorkspaceModal: React.FC<TaskWorkspaceModalProps> = ({
       setShowConfirmDelete(false);
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete task');
+      const msg = err.response?.data?.message || err.message || 'Failed to delete task';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsDeleting(false);
     }

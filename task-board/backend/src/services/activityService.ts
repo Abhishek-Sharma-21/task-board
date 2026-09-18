@@ -12,6 +12,8 @@ export interface ActivityFilterOptions {
   projectId?: string;
   taskId?: string;
   action?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
   limit?: number;
 }
@@ -76,6 +78,20 @@ export async function getActivitiesForWorkspace(
   if (workspace && workspace.activityRetentionDays > 0) {
     const cutoffDate = new Date(Date.now() - workspace.activityRetentionDays * 86400000);
     whereClause.createdAt = { gte: cutoffDate };
+  }
+
+  // Date range filter (overrides retention cutoff if provided)
+  if (options.dateFrom || options.dateTo) {
+    const dateFilter: any = {};
+    if (options.dateFrom) {
+      dateFilter.gte = new Date(options.dateFrom);
+    }
+    if (options.dateTo) {
+      const to = new Date(options.dateTo);
+      to.setHours(23, 59, 59, 999);
+      dateFilter.lte = to;
+    }
+    whereClause.createdAt = dateFilter;
   }
 
   if (options.action) {

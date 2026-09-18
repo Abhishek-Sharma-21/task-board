@@ -8,6 +8,8 @@ import { useAuthStore } from '../auth/authStore';
 import { ProjectOverview } from './ProjectOverview';
 import { TaskDrawer } from '../boards/TaskDrawer';
 import { TaskWorkspaceModal } from '../boards/TaskWorkspaceModal';
+import { useToastStore } from '../../components/common/toastStore';
+import { useConfirmStore } from '../../components/common/confirmStore';
 import type { Task } from '../../schemas';
 import { LayoutGrid, List, Users, Settings } from 'lucide-react';
 
@@ -50,7 +52,7 @@ export const ProjectPage: React.FC = () => {
     if (!addMemberEmail.trim() || !projectId) return;
     const wsMember = workspaceMembers.find((m) => m.email === addMemberEmail.trim());
     if (!wsMember) {
-      alert('User not found in this workspace');
+      useToastStore.getState().addToast({ message: 'User not found in this workspace', type: 'error' });
       return;
     }
     setAddingMember(true);
@@ -58,27 +60,44 @@ export const ProjectPage: React.FC = () => {
       await addMember(projectId, wsMember.id);
       setAddMemberEmail('');
     } catch (err: any) {
-      alert(err.message || 'Failed to add member');
+      const msg = err.response?.data?.message || err.message || 'Failed to add member';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setAddingMember(false);
     }
   };
 
   const handleRemoveMember = async (userId: string) => {
-    if (!projectId || !window.confirm('Remove this member from the project?')) return;
+    if (!projectId) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm',
+      message: 'Remove this member from the project?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await removeMember(projectId, userId);
     } catch (err: any) {
-      alert(err.message || 'Failed to remove member');
+      const msg = err.response?.data?.message || err.message || 'Failed to remove member';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
   const handleSetHead = async (userId: string) => {
-    if (!projectId || !window.confirm('Set this member as project head?')) return;
+    if (!projectId) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm',
+      message: 'Set this member as project head?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await setHead(projectId, userId);
     } catch (err: any) {
-      alert(err.message || 'Failed to set project head');
+      const msg = err.response?.data?.message || err.message || 'Failed to set project head';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 

@@ -37,40 +37,38 @@ export const CalendarPage: React.FC = () => {
   }, [workspaceId, fetchProjects]);
 
   // Fetch all tasks in parallel (no sequential awaits)
-  useEffect(() => {
-    const loadAllTasks = async () => {
-      if (projects.length === 0) return;
+  const loadAllTasks = async () => {
+    if (projects.length === 0) return;
 
-      setIsLoading(true);
-      try {
-        // Step 1: Fetch all boards for all projects in parallel
-        const boardResults = await Promise.all(
-          projects.map((p) =>
-            api.get<{ success: true; data: Array<{ id: string }> }>(`/projects/${p.id}/boards`)
-          )
-        );
-        const allBoards = boardResults.flatMap((r) => r.data.data);
+    setIsLoading(true);
+    try {
+      const boardResults = await Promise.all(
+        projects.map((p) =>
+          api.get<{ success: true; data: Array<{ id: string }> }>(`/projects/${p.id}/boards`)
+        )
+      );
+      const allBoards = boardResults.flatMap((r) => r.data.data);
 
-        if (allBoards.length === 0) {
-          setAllTasks([]);
-          return;
-        }
-
-        // Step 2: Fetch tasks for all boards in parallel
-        const taskResults = await Promise.all(
-          allBoards.map((b) =>
-            api.get<{ success: true; data: Task[] }>(`/boards/${b.id}/tasks`)
-          )
-        );
-        const tasks = taskResults.flatMap((r) => r.data.data);
-        setAllTasks(tasks);
-      } catch (err) {
-        console.error('Failed to load calendar tasks:', err);
-      } finally {
-        setIsLoading(false);
+      if (allBoards.length === 0) {
+        setAllTasks([]);
+        return;
       }
-    };
 
+      const taskResults = await Promise.all(
+        allBoards.map((b) =>
+          api.get<{ success: true; data: Task[] }>(`/boards/${b.id}/tasks`)
+        )
+      );
+      const tasks = taskResults.flatMap((r) => r.data.data);
+      setAllTasks(tasks);
+    } catch (err) {
+      console.error('Failed to load calendar tasks:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadAllTasks();
   }, [projects]);
 
@@ -285,7 +283,7 @@ export const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      <TaskDrawer task={selectedTask} onClose={() => setSelectedTask(null)} />
+      <TaskDrawer task={selectedTask} onClose={() => { setSelectedTask(null); loadAllTasks(); }} />
     </div>
   );
 };

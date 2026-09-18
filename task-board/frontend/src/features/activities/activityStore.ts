@@ -23,6 +23,8 @@ interface ActivityState {
   selectedProjectId: string | null;
   selectedTaskId: string | null;
   actionFilter: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
   page: number;
   limit: number;
   totalCount: number;
@@ -33,6 +35,9 @@ interface ActivityState {
   setScope: (scope: 'my' | 'project' | 'workspace' | 'task') => void;
   setSelectedProjectId: (projectId: string | null) => void;
   setActionFilter: (action: string | null) => void;
+  setDateFrom: (dateFrom: string | null) => void;
+  setDateTo: (dateTo: string | null) => void;
+  setPageSize: (limit: number) => void;
   setPage: (page: number) => void;
 
   fetchActivities: (
@@ -42,6 +47,8 @@ interface ActivityState {
       projectId?: string | null;
       taskId?: string | null;
       action?: string | null;
+      dateFrom?: string | null;
+      dateTo?: string | null;
       page?: number;
       limit?: number;
     }
@@ -56,6 +63,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   selectedProjectId: null,
   selectedTaskId: null,
   actionFilter: null,
+  dateFrom: null,
+  dateTo: null,
   page: 1,
   limit: 20,
   totalCount: 0,
@@ -66,6 +75,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   setScope: (scope) => set({ scope, page: 1 }),
   setSelectedProjectId: (selectedProjectId) => set({ selectedProjectId, page: 1 }),
   setActionFilter: (actionFilter) => set({ actionFilter, page: 1 }),
+  setDateFrom: (dateFrom) => set({ dateFrom, page: 1 }),
+  setDateTo: (dateTo) => set({ dateTo, page: 1 }),
+  setPageSize: (limit) => set({ limit, page: 1 }),
   setPage: (page) => set({ page }),
 
   resetWorkspaceActivities: () => {
@@ -75,7 +87,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       selectedProjectId: null,
       selectedTaskId: null,
       actionFilter: null,
+      dateFrom: null,
+      dateTo: null,
       page: 1,
+      limit: 20,
       totalCount: 0,
       totalPages: 1,
       error: null,
@@ -89,6 +104,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     const projectId = options.projectId !== undefined ? options.projectId : current.selectedProjectId;
     const taskId = options.taskId !== undefined ? options.taskId : current.selectedTaskId;
     const action = options.action !== undefined ? options.action : current.actionFilter;
+    const dateFrom = options.dateFrom !== undefined ? options.dateFrom : current.dateFrom;
+    const dateTo = options.dateTo !== undefined ? options.dateTo : current.dateTo;
     const page = options.page !== undefined ? options.page : current.page;
     const limit = options.limit !== undefined ? options.limit : current.limit;
 
@@ -98,6 +115,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       if (projectId) params.append('projectId', projectId);
       if (taskId) params.append('taskId', taskId);
       if (action) params.append('action', action);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
       params.append('page', page.toString());
       params.append('limit', limit.toString());
 

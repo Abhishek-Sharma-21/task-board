@@ -47,6 +47,17 @@ export async function createEmailInvite(
     throw new HttpError(409, 'INVITE_EXISTS', 'An active invite already exists for this email');
   }
 
+  // Check if user is already a member
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    const isMember = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: existingUser.id } },
+    });
+    if (isMember) {
+      throw new HttpError(409, 'ALREADY_A_MEMBER', `${existingUser.name} is already a member of this workspace`);
+    }
+  }
+
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 

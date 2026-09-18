@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/authStore';
 import { useWorkspaceStore } from '../features/workspaces/workspaceStore';
@@ -10,9 +10,12 @@ import { connectSocket, disconnectSocket } from '../sockets/socket';
 import { Spinner } from '../components/Spinner';
 import { OfflineSyncBanner } from '../components/common/OfflineSyncBanner';
 import { ToastContainer } from '../components/common/ToastContainer';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { NotificationDropdown } from '../components/NotificationDropdown';
-import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, Sun, Moon, Folder, LogOut, Users, Activity, Menu } from 'lucide-react';
+import { Home, LayoutGrid, Calendar, Bell, Settings, ChevronDown, Sun, Moon, Folder, LogOut, Users, Activity, Menu, Check, ChevronsUpDown } from 'lucide-react';
 import { WorkspaceMembersModal } from '../components/WorkspaceMembersModal';
+import { useToastStore } from '../components/common/toastStore';
+import { useConfirmStore } from '../components/common/confirmStore';
 
 export const AppLayout: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -30,6 +33,8 @@ export const AppLayout: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
+  const workspaceDropdownRef = useRef<HTMLDivElement>(null);
 
   const [workspaceNameInput, setWorkspaceNameInput] = useState('');
   const [projectNameInput, setProjectNameInput] = useState('');
@@ -159,11 +164,25 @@ export const AppLayout: React.FC = () => {
         setIsTeamModalOpen(false);
         setIsNotificationOpen(false);
         setIsMembersModalOpen(false);
+        setIsWorkspaceDropdownOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Close workspace dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (workspaceDropdownRef.current && !workspaceDropdownRef.current.contains(e.target as Node)) {
+        setIsWorkspaceDropdownOpen(false);
+      }
+    };
+    if (isWorkspaceDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isWorkspaceDropdownOpen]);
 
 
 
@@ -188,7 +207,8 @@ export const AppLayout: React.FC = () => {
       setIsWorkspaceModalOpen(false);
       navigate(`/workspaces/${ws.id}`);
     } catch (err: any) {
-      alert(err.message);
+      const msg = err.response?.data?.message || err.message || 'Failed to create workspace';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsCreatingWorkspace(false);
     }
@@ -211,7 +231,8 @@ export const AppLayout: React.FC = () => {
       setIsProjectModalOpen(false);
       navigate(`/workspaces/${activeWorkspace.id}/projects/${proj.id}`);
     } catch (err: any) {
-      alert(err.message);
+      const msg = err.response?.data?.message || err.message || 'Failed to create project';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsCreatingProject(false);
     }
@@ -227,7 +248,8 @@ export const AppLayout: React.FC = () => {
       setIsBoardModalOpen(false);
       navigate(`/workspaces/${activeWorkspace.id}/projects/${activeProject.id}/boards/${brd.id}`);
     } catch (err: any) {
-      alert(err.message);
+      const msg = err.response?.data?.message || err.message || 'Failed to create board';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsCreatingBoard(false);
     }
@@ -244,7 +266,8 @@ export const AppLayout: React.FC = () => {
       setInviteEmail('');
       setInviteSuccess(true);
     } catch (err: any) {
-      setInviteError(err.message || 'Failed to invite member');
+      const msg = err.response?.data?.message || err.message || 'Failed to invite member';
+      setInviteError(msg);
     } finally {
       setIsInviting(false);
     }
@@ -255,18 +278,27 @@ export const AppLayout: React.FC = () => {
     try {
       await changeMemberRole(activeWorkspace.id, userId, role);
     } catch (err: any) {
-      alert(err.message || 'Failed to change role');
+      const msg = err.response?.data?.message || err.message || 'Failed to change role';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
   const handleRemoveMember = async (userId: string) => {
     if (!activeWorkspace || removingMemberId) return;
-    if (!window.confirm('Are you sure you want to remove this member from the workspace?')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Remove Member',
+      message: 'Are you sure you want to remove this member from the workspace?',
+      confirmLabel: 'Remove',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setRemovingMemberId(userId);
     try {
       await removeMember(activeWorkspace.id, userId);
+      useToastStore.getState().addToast({ message: 'Member removed', type: 'success' });
     } catch (err: any) {
-      alert(err.message || 'Failed to remove member');
+      const msg = err.response?.data?.message || err.message || 'Failed to remove member';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setRemovingMemberId(null);
     }
@@ -327,20 +359,37 @@ export const AppLayout: React.FC = () => {
               </button>
             </div>
             {workspaces.length > 0 ? (
-              <select
-                value={activeWorkspace?.id || ''}
-                onChange={(e) => {
-                  selectWorkspace(e.target.value);
-                  navigate(`/workspaces/${e.target.value}`);
-                }}
-                className="bg-input border border-border text-sm font-bold text-text-secondary py-2 px-3 rounded-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-              >
-                {workspaces.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={workspaceDropdownRef}>
+                <button
+                  onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
+                  className="w-full flex items-center justify-between gap-2 bg-input border border-border text-xs font-bold text-text-secondary py-2 px-3 rounded-sm focus:outline-none focus:border-primary hover:border-border-strong transition-colors btn-press"
+                >
+                  <span className="truncate">{activeWorkspace?.name || 'Select Workspace'}</span>
+                  <ChevronsUpDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                </button>
+                {isWorkspaceDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-surface-elevated border border-border rounded-sm shadow-theme-lg z-50 max-h-48 overflow-y-auto animate-fade-in">
+                    {workspaces.map((w) => (
+                      <button
+                        key={w.id}
+                        onClick={() => {
+                          selectWorkspace(w.id);
+                          navigate(`/workspaces/${w.id}`);
+                          setIsWorkspaceDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-bold transition-colors text-left ${
+                          activeWorkspace?.id === w.id
+                            ? 'bg-primary-light text-primary'
+                            : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+                        }`}
+                      >
+                        <span className="truncate">{w.name}</span>
+                        {activeWorkspace?.id === w.id && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="text-xs text-text-faint italic">No workspaces found</div>
             )}
@@ -634,6 +683,7 @@ export const AppLayout: React.FC = () => {
           <Outlet context={{ setIsBoardModalOpen }} />
         </main>
         <ToastContainer />
+        <ConfirmDialog />
       </div>
 
       {/* Workspace Custom Modal */}

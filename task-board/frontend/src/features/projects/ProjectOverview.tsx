@@ -2,6 +2,7 @@ import React from 'react';
 import type { Task, Project } from '../../schemas';
 import { ProjectStatus } from '../../schemas';
 import { useProjectStore } from './projectStore';
+import { useToastStore } from '../../components/common/toastStore';
 
 interface ProjectOverviewProps {
   project: Project;
@@ -41,7 +42,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
     try {
       await updateProject(project.id, { status: newStatus });
     } catch (err: any) {
-      alert(err.message || 'Failed to update project status');
+      const msg = err.response?.data?.message || err.message || 'Failed to update project status';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../features/auth/authStore';
 import { useWorkspaceStore } from '../features/workspaces/workspaceStore';
+import { useToastStore } from './common/toastStore';
+import { useConfirmStore } from './common/confirmStore';
 import { Spinner } from './Spinner';
 import { Users, Mail, Link2, Trash2, Copy, Check, UserPlus, X } from 'lucide-react';
 
@@ -72,7 +74,8 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({ is
       setInviteEmail('');
       setInviteSuccess(true);
     } catch (err: any) {
-      setInviteError(err.message || 'Failed to invite member');
+      const msg = err.response?.data?.message || err.message || 'Failed to invite member';
+      setInviteError(msg);
     } finally {
       setIsInviting(false);
     }
@@ -86,7 +89,8 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({ is
       const link = `${window.location.origin}/join-workspace?token=${invite.token}`;
       setShareableLink(link);
     } catch (err: any) {
-      setInviteError(err.message || 'Failed to create link');
+      const msg = err.response?.data?.message || err.message || 'Failed to create link';
+      setInviteError(msg);
     } finally {
       setIsCreatingLink(false);
     }
@@ -104,18 +108,26 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({ is
     try {
       await changeMemberRole(activeWorkspace.id, userId, role);
     } catch (err: any) {
-      alert(err.message || 'Failed to change role');
+      const msg = err.response?.data?.message || err.message || 'Failed to change role';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
   const handleRemoveMember = async (userId: string) => {
     if (!activeWorkspace || removingMemberId) return;
-    if (!window.confirm('Are you sure you want to remove this member from the workspace?')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm',
+      message: 'Are you sure you want to remove this member from the workspace?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setRemovingMemberId(userId);
     try {
       await removeMember(activeWorkspace.id, userId);
     } catch (err: any) {
-      alert(err.message || 'Failed to remove member');
+      const msg = err.response?.data?.message || err.message || 'Failed to remove member';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setRemovingMemberId(null);
     }
@@ -123,11 +135,18 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({ is
 
   const handleRevokeInvite = async (inviteId: string) => {
     if (!activeWorkspace) return;
-    if (!window.confirm('Revoke this invite?')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm',
+      message: 'Revoke this invite?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await revokeInvite(activeWorkspace.id, inviteId);
     } catch (err: any) {
-      alert(err.message || 'Failed to revoke invite');
+      const msg = err.response?.data?.message || err.message || 'Failed to revoke invite';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 

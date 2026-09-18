@@ -20,6 +20,8 @@ export async function getWorkspaceActivity(req: Request, res: Response, next: Ne
     const projectId = (req.query.projectId as string) || undefined;
     const taskId = (req.query.taskId as string) || undefined;
     const action = (req.query.action as string) || undefined;
+    const dateFrom = (req.query.dateFrom as string) || undefined;
+    const dateTo = (req.query.dateTo as string) || undefined;
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
 
@@ -28,6 +30,8 @@ export async function getWorkspaceActivity(req: Request, res: Response, next: Ne
       projectId,
       taskId,
       action,
+      dateFrom,
+      dateTo,
       page,
       limit,
     });

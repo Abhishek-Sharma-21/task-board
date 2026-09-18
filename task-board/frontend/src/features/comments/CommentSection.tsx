@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useCommentStore } from './commentStore';
 import { useAuthStore } from '../auth/authStore';
 import { useWorkspaceStore } from '../workspaces/workspaceStore';
+import { useConfirmStore } from '../../components/common/confirmStore';
 import { getSocket } from '../../sockets/socket';
 
 interface CommentSectionProps {
@@ -189,7 +190,13 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!window.confirm('Delete this comment?')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm',
+      message: 'Delete this comment?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await deleteComment(taskId, commentId);
     } catch (err) {

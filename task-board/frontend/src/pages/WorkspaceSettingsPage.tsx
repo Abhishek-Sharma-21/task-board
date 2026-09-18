@@ -7,6 +7,8 @@ import { useAuthStore } from '../features/auth/authStore';
 import { Spinner } from '../components/Spinner';
 import { ChangePasswordInput } from '../schemas';
 import { isAxiosError } from 'axios';
+import { useToastStore } from '../components/common/toastStore';
+import { useConfirmStore } from '../components/common/confirmStore';
 
 export const WorkspaceSettingsPage: React.FC = () => {
   useParams<{ workspaceId: string }>();
@@ -132,7 +134,8 @@ export const WorkspaceSettingsPage: React.FC = () => {
       await restoreTask(taskId);
       setRestoreMessage('Task successfully restored back to active board!');
     } catch (err: any) {
-      alert(err.message || 'Failed to restore task');
+      const msg = err.response?.data?.message || err.message || 'Failed to restore task';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setRestoringTaskId(null);
     }
@@ -140,14 +143,21 @@ export const WorkspaceSettingsPage: React.FC = () => {
 
   const handlePruneCompletedTasksSubmit = async () => {
     if (!activeWorkspace || isPruningTasks) return;
-    if (!window.confirm(`Are you sure you want to prune completed tasks older than ${pruneDays} days? This action cannot be undone.`)) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: `Are you sure you want to prune completed tasks older than ${pruneDays} days? This action cannot be undone.`,
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setIsPruningTasks(true);
     setPruneTasksMessage(null);
     try {
       const count = await pruneCompletedTasks(activeWorkspace.id, pruneDays);
       setPruneTasksMessage(`Successfully pruned ${count} completed task(s).`);
     } catch (err: any) {
-      alert(err.message || 'Failed to prune completed tasks');
+      const msg = err.response?.data?.message || err.message || 'Failed to prune completed tasks';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsPruningTasks(false);
     }
@@ -184,7 +194,8 @@ export const WorkspaceSettingsPage: React.FC = () => {
       await updateWorkspace(activeWorkspace.id, { name: workspaceName.trim() });
       setNameSuccess(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to update workspace name');
+      const msg = err.response?.data?.message || err.message || 'Failed to update workspace name';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsSavingName(false);
     }
@@ -230,7 +241,8 @@ export const WorkspaceSettingsPage: React.FC = () => {
       await updateWorkspace(activeWorkspace.id, { activityRetentionDays: retentionDays });
       setRetentionSuccess(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to update activity retention policy');
+      const msg = err.response?.data?.message || err.message || 'Failed to update activity retention policy';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsSavingRetention(false);
     }
@@ -238,14 +250,21 @@ export const WorkspaceSettingsPage: React.FC = () => {
 
   const handlePruneActivityLogs = async () => {
     if (!activeWorkspace || isPruning) return;
-    if (!window.confirm('Are you sure you want to purge all expired activity logs immediately? This action cannot be undone.')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: 'Are you sure you want to purge all expired activity logs immediately? This action cannot be undone.',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setIsPruning(true);
     setPruneMessage(null);
     try {
       const pruned = await pruneActivityLogs(activeWorkspace.id);
       setPruneMessage(`Successfully purged ${pruned} expired activity log(s).`);
     } catch (err: any) {
-      alert(err.message || 'Failed to prune activity logs');
+      const msg = err.response?.data?.message || err.message || 'Failed to prune activity logs';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsPruning(false);
     }
@@ -262,7 +281,8 @@ export const WorkspaceSettingsPage: React.FC = () => {
       setInviteEmail('');
       setInviteSuccess(true);
     } catch (err: any) {
-      setInviteError(err.message || 'Failed to invite member');
+      const msg = err.response?.data?.message || err.message || 'Failed to invite member';
+      setInviteError(msg);
     } finally {
       setIsInviting(false);
     }
@@ -287,18 +307,27 @@ export const WorkspaceSettingsPage: React.FC = () => {
       setIsCreateProjectOpen(false);
       await fetchProjects(activeWorkspace.id);
     } catch (err: any) {
-      alert(err.message || 'Failed to create project');
+      const msg = err.response?.data?.message || err.message || 'Failed to create project';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsCreatingProject(false);
     }
   };
 
   const handleSetProjectHead = async (userId: string) => {
-    if (!selectedProject || !window.confirm('Change Project Head? The current head will become a project member.')) return;
+    if (!selectedProject) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: 'Change Project Head? The current head will become a project member.',
+      confirmLabel: 'Confirm',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
     try {
       await setProjectHead(selectedProject.id, userId);
     } catch (err: any) {
-      alert(err.message || 'Failed to set Project Head');
+      const msg = err.response?.data?.message || err.message || 'Failed to set Project Head';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
@@ -309,40 +338,63 @@ export const WorkspaceSettingsPage: React.FC = () => {
       await addProjectMember(selectedProject.id, addProjMemberId);
       setAddProjMemberId('');
     } catch (err: any) {
-      alert(err.message || 'Failed to add project member');
+      const msg = err.response?.data?.message || err.message || 'Failed to add project member';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsAddingProjMember(false);
     }
   };
 
   const handleRemoveProjectMember = async (userId: string) => {
-    if (!selectedProject || !window.confirm('Remove member from project?')) return;
+    if (!selectedProject) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: 'Remove member from project?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await removeProjectMember(selectedProject.id, userId);
     } catch (err: any) {
-      alert(err.message || 'Failed to remove member');
+      const msg = err.response?.data?.message || err.message || 'Failed to remove member';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
   const handleDeleteProject = async (projId: string) => {
-    if (!window.confirm('Are you sure you want to delete this project and all its boards?')) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: 'Are you sure you want to delete this project and all its boards?',
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await deleteProject(projId);
       if (selectedProject?.id === projId) setSelectedProject(null);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete project');
+      const msg = err.response?.data?.message || err.message || 'Failed to delete project';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     }
   };
 
   const handleLeaveWorkspace = async () => {
     if (!activeWorkspace || isLeaving) return;
-    if (!window.confirm(`Are you sure you want to leave ${activeWorkspace.name}?`)) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: `Are you sure you want to leave ${activeWorkspace.name}?`,
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setIsLeaving(true);
     try {
       await leaveWorkspace(activeWorkspace.id);
       navigate('/');
     } catch (err: any) {
-      alert(err.message || 'Failed to leave workspace');
+      const msg = err.response?.data?.message || err.message || 'Failed to leave workspace';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsLeaving(false);
     }
@@ -350,13 +402,20 @@ export const WorkspaceSettingsPage: React.FC = () => {
 
   const handleDeleteWorkspace = async () => {
     if (!activeWorkspace || isDeleting) return;
-    if (!window.confirm(`PERMANENT ACTION: Are you sure you want to delete ${activeWorkspace.name}? All projects, boards, and tasks will be permanently removed.`)) return;
+    const confirmed = await useConfirmStore.getState().open({
+      title: 'Confirm Action',
+      message: `PERMANENT ACTION: Are you sure you want to delete ${activeWorkspace.name}? All projects, boards, and tasks will be permanently removed.`,
+      confirmLabel: 'Confirm',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setIsDeleting(true);
     try {
       await deleteWorkspace(activeWorkspace.id);
       navigate('/');
     } catch (err: any) {
-      alert(err.message || 'Failed to delete workspace');
+      const msg = err.response?.data?.message || err.message || 'Failed to delete workspace';
+      useToastStore.getState().addToast({ message: msg, type: 'error' });
     } finally {
       setIsDeleting(false);
     }
@@ -724,9 +783,9 @@ export const WorkspaceSettingsPage: React.FC = () => {
             </form>
           </div>
 
-          <div className="pt-4 border-t border-border font-mono text-xs space-y-1">
+          <div className="pt-4 border-t border-border text-xs space-y-1">
             <span className="text-[10px] text-text-muted uppercase tracking-wider">Workspace ID:</span>
-            <p className="text-text-secondary select-all">{activeWorkspace.id}</p>
+            <p className="text-text-secondary select-all font-mono-actual">{activeWorkspace.id}</p>
           </div>
         </div>
       )}
