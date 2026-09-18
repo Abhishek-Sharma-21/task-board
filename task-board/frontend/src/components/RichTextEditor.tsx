@@ -122,7 +122,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     if (editor && !editor.isFocused) {
       const currentMd = htmlToMarkdown(editor.getHTML());
       if (currentMd !== value) {
-        editor.commands.setContent(markdownToHtml(value), false);
+        editor.commands.setContent(markdownToHtml(value), { emitUpdate: false });
       }
     }
   }, [value]);

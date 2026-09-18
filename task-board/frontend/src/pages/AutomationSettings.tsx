@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useToastStore } from '../components/common/toastStore';
 import { useConfirmStore } from '../components/common/confirmStore';
-import { Plus, Trash2, Power, PowerOff, Zap, ArrowRight, Bell } from 'lucide-react';
+import { Plus, Trash2, Power, PowerOff, Zap } from 'lucide-react';
 
 interface AutomationRule {
   id: string;

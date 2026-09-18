@@ -71,6 +71,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   columns: [],
   tasksByColumn: {},
   activeUsers: [],
+  taskPresence: {},
   isLoading: false,
   error: null,
 

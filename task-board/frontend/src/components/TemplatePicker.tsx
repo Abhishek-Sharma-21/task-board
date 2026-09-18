@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useToastStore } from './common/toastStore';
-import { LayoutGrid, Bug, Megaphone, Kanban, Sparkles } from 'lucide-react';
+
 
 interface TemplateDef {
   id: string;

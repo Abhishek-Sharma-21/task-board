@@ -65,41 +65,6 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ taskId }) => {
   const workspaceMembers = useWorkspaceStore((state) => state.members);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setCommentBody(val);
-
-    const cursorPos = e.target.selectionStart;
-    const textBeforeCursor = val.slice(0, cursorPos);
-    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-
-    if (lastAtIndex !== -1 && (lastAtIndex === 0 || /\s/.test(textBeforeCursor[lastAtIndex - 1]))) {
-      const query = textBeforeCursor.slice(lastAtIndex + 1);
-      if (!/\s/.test(query)) {
-        setMentionQuery(query.toLowerCase());
-      } else {
-        setMentionQuery(null);
-      }
-    } else {
-      setMentionQuery(null);
-    }
-
-    if (!boardId || !currentUser) return;
-    const socket = getSocket();
-
-    if (!isCurrentlyTypingRef.current) {
-      isCurrentlyTypingRef.current = true;
-      socket.emit('typing', { boardId, taskId, name: currentUser.name });
-    }
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    typingTimeoutRef.current = setTimeout(() => {
-      isCurrentlyTypingRef.current = false;
-      socket.emit('stopTyping', { boardId, taskId });
-    }, 1500);
-  };
-
   const handleSelectMention = (member: { id: string; name: string }) => {
     const lastAtIndex = commentBody.lastIndexOf('@');
     if (lastAtIndex !== -1) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useProjectStore } from '../features/projects/projectStore';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { BarChart3, TrendingUp, Clock, Users, Download } from 'lucide-react';
 
 interface AnalyticsData {
@@ -165,7 +165,7 @@ export const AnalyticsPage: React.FC = () => {
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
                   {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip contentStyle={{ fontSize: 11, fontFamily: 'monospace' }} />
