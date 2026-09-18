@@ -5,7 +5,7 @@ import { useProjectStore } from '../features/projects/projectStore';
 import { useWorkspaceStore } from '../features/workspaces/workspaceStore';
 import { useAuthStore } from '../features/auth/authStore';
 import { Spinner } from '../components/Spinner';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const ActivityPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
