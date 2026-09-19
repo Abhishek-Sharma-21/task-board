@@ -35,7 +35,12 @@ frontend/dist/
 backend/dist/
 shared/dist/
 *.tsbuildinfo
-# Mobile app (excluded from upload)
-mobile-app/
 
+# Mobile app - caches and secrets
+mobile-app/.expo/
+mobile-app/node_modules/
+mobile-app/dist/
+mobile-app/.env
+
+# Archives
 *.zip

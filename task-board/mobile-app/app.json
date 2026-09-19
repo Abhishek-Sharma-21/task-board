@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Task Board",
+    "slug": "task-board",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.taskboard.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0F1C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.taskboard.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "apiUrl": {
+        "development": "http://10.0.2.2:4000/api",
+        "preview": "https://task-board-732m.onrender.com/api",
+        "production": "https://task-board-732m.onrender.com/api"
+      },
+      "socketUrl": {
+        "development": "http://10.0.2.2:4000",
+        "preview": "https://task-board-732m.onrender.com",
+        "production": "https://task-board-732m.onrender.com"
+      },
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    },
+    "owner": "your-expo-username"
+  }
+}

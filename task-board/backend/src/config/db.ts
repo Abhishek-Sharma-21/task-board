@@ -8,9 +8,9 @@ const { Pool } = pg;
 const connectionString = env.databaseUrl;
 const pool = new Pool({
   connectionString,
-  max: 10,
-  idleTimeoutMillis: 15000,
-  connectionTimeoutMillis: 10000,
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 30000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
 });
@@ -24,7 +24,18 @@ const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
 export async function connectDb(): Promise<void> {
-  await prisma.$connect();
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.$connect();
+      console.log('[db] connected');
+      return;
+    } catch (err: any) {
+      console.warn(`[db] connection attempt ${attempt}/${maxRetries} failed: ${err?.message}`);
+      if (attempt === maxRetries) throw err;
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
 }
 
 export async function disconnectDb(): Promise<void> {

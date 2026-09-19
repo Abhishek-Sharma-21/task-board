@@ -704,6 +704,59 @@ export async function getCompletedTasksHistory(
   return tasks.map((t) => formatTask(t, assigneesByTask.get(t.id) || []));
 }
 
+export async function getWorkspaceTasksDue(
+  workspaceId: string
+): Promise<TaskData[]> {
+  if (!isValidId(workspaceId)) {
+    throw new HttpError(400, 'INVALID_WORKSPACE_ID', 'Invalid workspace ID');
+  }
+
+  const projects = await prisma.project.findMany({
+    where: { workspaceId },
+    select: { id: true },
+  });
+  const projectIds = projects.map((p) => p.id);
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      projectId: { in: projectIds },
+      dueDate: { not: null },
+      isArchived: false,
+    },
+    include: {
+      column: {
+        select: {
+          name: true,
+          board: {
+            select: {
+              name: true,
+              project: { select: { name: true } },
+            },
+          },
+        },
+      },
+      checklists: { orderBy: { position: 'asc' } },
+    },
+    orderBy: { dueDate: 'asc' },
+  });
+
+  const taskIds = tasks.map((t) => t.id);
+  const allTaskAssignees = taskIds.length > 0
+    ? await prisma.taskAssignee.findMany({
+        where: { taskId: { in: taskIds } },
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      })
+    : [];
+  const assigneesByTask = new Map<string, Array<{ id: string; name: string; email: string; avatarUrl?: string }>>();
+  allTaskAssignees.forEach((ta) => {
+    const existing = assigneesByTask.get(ta.taskId) || [];
+    existing.push({ id: ta.user.id, name: ta.user.name, email: ta.user.email, avatarUrl: ta.user.avatarUrl || undefined });
+    assigneesByTask.set(ta.taskId, existing);
+  });
+
+  return tasks.map((t) => formatTask(t, assigneesByTask.get(t.id) || []));
+}
+
 export async function restoreTask(taskId: string): Promise<TaskData> {
   if (!isValidId(taskId)) {
     throw new HttpError(400, 'INVALID_TASK_ID', 'Invalid task ID');

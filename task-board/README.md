@@ -1,138 +1,199 @@
-# 🚀 Task Board
+# Task Board
 
-> A real-time collaborative Kanban task management platform built for modern teams.
+A real-time collaborative Kanban task management platform built for modern teams.
 
 Task Board helps teams organize projects, manage tasks, collaborate in real time, and keep track of work across multiple projects and workspaces.
 
 ---
 
-## ✨ Features
+## Live Links
 
-### 🏢 Workspaces & Projects
+| Platform       | URL                                                                                |
+| -------------- | ---------------------------------------------------------------------------------- |
+| **Frontend**   | [https://task-board-virid-ten.vercel.app](https://task-board-virid-ten.vercel.app) |
+| **Mobile APK** | Built via EAS Build (see `mobile-app/` folder)                                     |
+
+---
+
+## Features
+
+### Workspaces & Projects
 
 - Multi-workspace support
 - Project-based organization
-- Workspace roles: **Owner, Admin, Member**
+- Workspace roles: Owner, Admin, Member
 - Team and member management
 - Project-level access control
 
-### 📋 Kanban Boards
+### Kanban Boards
 
 - Drag-and-drop task management
 - Customizable workflow columns
-- Task ordering
-- Column management
+- Task ordering and column management
 - Archive and restore tasks
 - Real-time board updates
 
-### 👥 Multi-Assignee Tasks
+### Multi-Assignee Tasks
 
 - Assign multiple team members to a task
 - Checkbox-based member selection
 - Stacked avatar display
-- Project membership validation
 
-### ⚡ Real-Time Collaboration
+### Real-Time Collaboration
 
-Powered by **Socket.IO** for instant updates across connected clients.
+Powered by Socket.IO for instant updates across connected clients.
 
-- Task updates
-- Comments
-- Task chat
+- Task updates, comments, chat
 - Notifications
 - Board changes
 - Collaborative activity
 
-### 💬 Task Chat
+### Task Chat
 
 Every task can have its own dedicated conversation.
 
 - Real-time messaging
-- Message history
-- Search
+- Message history and search
 - Thread-based communication
-- Task-specific discussions
 
-### 🔔 Notifications
-
-Stay updated without constantly checking your projects.
+### Notifications
 
 - Real-time notifications
 - Unread notification count
-- Bulk actions
+- Bulk mark-all-read
 - Task and workspace activity notifications
 
-### 🗂️ My Work
+### My Work
 
-A personalized workspace showing tasks that require your attention.
+A personalized view of tasks that require your attention.
 
-- **Today**
-- **Overdue**
-- **Upcoming**
-- **Waiting For**
-- **Blocked**
-- **Completed**
+- Today, Overdue, Upcoming
+- Waiting For, Blocked
+- Completed
 
-Tasks are aggregated across the user's accessible projects.
-
-### 📅 Calendar
-
-Visualize tasks based on their due dates.
+### Calendar
 
 - Calendar-based task view
-- Project filtering
-- Priority filtering
-- Due-date tracking
+- Due-date tracking with task dots
 
-### ☑️ Task Checklists
+### Task Checklists
 
-Break larger tasks into smaller actionable items.
-
-- Checklist items
-- Completion tracking
+- Checklist items with completion tracking
 - Progress indicators
-- Subtask management
 
-### 📊 Activity History
+### Activity History
 
-Maintain a complete audit trail of important changes.
+Complete audit trail of workspace, project, and task changes.
 
-Track:
-
-- Workspace changes
-- Project changes
-- Task changes
-- Assignments
-- Status updates
-- Comments and activity
-
-### 📩 Workspace Invitations
-
-Invite team members using:
+### Workspace Invitations
 
 - Email invitations
 - Shareable workspace invitation links
 
-### 🌓 Dark & Light Themes
+### Dark & Light Themes
 
-Full theme support using CSS custom properties.
-
-- Light mode
-- Dark mode
+- Full theme support
 - Persistent theme preference
-- Consistent UI across the application
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-| Layer | Technologies |
-|---|---|
-| **Frontend** | React 18 · TypeScript · Vite · Tailwind CSS · Zustand · React Router · dnd-kit · Socket.IO Client |
-| **Backend** | Node.js · Express · TypeScript · Prisma ORM · PostgreSQL · Socket.IO · JWT |
-| **Mobile** | React Native · Expo |
-| **Database** | PostgreSQL · Neon |
-| **Deployment** | Vercel · Render · Neon |
+| Layer          | Technologies                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| **Frontend**   | React 18, TypeScript, Vite, Tailwind CSS, Zustand, React Router, dnd-kit, Socket.IO Client |
+| **Backend**    | Node.js, Express, TypeScript, Prisma ORM, PostgreSQL, Socket.IO, JWT                       |
+| **Mobile**     | React Native, Expo, TypeScript, Zustand                                                    |
+| **Database**   | PostgreSQL (Neon)                                                                          |
+| **Deployment** | Vercel (Frontend), Render (Backend), EAS Build (Mobile)                                    |
 
+---
 
+## Project Structure
 
+```
+task-board/
+  backend/          Express.js API server
+    src/            TypeScript source
+    prisma/         Database schema and migrations
+  frontend/         React SPA
+    src/            TypeScript + React components
+  mobile-app/       React Native Expo app
+    src/            TypeScript + React Native screens
+    assets/         App icons and images
+    eas.json        EAS Build configuration
+```
+
+---
+
+## Getting Started
+
+### Backend
+
+```bash
+cd backend
+npm install
+cp .env.example .env   # Configure database URL and secrets
+npx prisma migrate dev
+npm run dev
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env   # Set API URL
+npm run dev
+```
+
+### Mobile
+
+```bash
+cd mobile-app
+npm install
+npx expo start
+```
+
+---
+
+## Mobile APK Build
+
+```bash
+npm install -g eas-cli
+eas login
+cd mobile-app
+eas build --platform android --profile preview
+```
+
+Download the APK from the link provided by EAS Build.
+
+---
+
+## Environment Variables
+
+### Backend (.env)
+
+| Variable             | Description                  |
+| -------------------- | ---------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string |
+| `JWT_ACCESS_SECRET`  | Secret for access tokens     |
+| `JWT_REFRESH_SECRET` | Secret for refresh tokens    |
+| `CLIENT_URL`         | Frontend URL for CORS        |
+| `CORS_ORIGIN`        | Allowed origin               |
+
+### Frontend (.env)
+
+| Variable            | Description     |
+| ------------------- | --------------- |
+| `VITE_API_BASE_URL` | Backend API URL |
+
+### Mobile (src/config/env.ts)
+
+Production URLs are configured in `app.json` under `extra.apiUrl` and `extra.socketUrl`.
+
+---
+
+## License
+
+Private

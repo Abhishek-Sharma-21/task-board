@@ -502,6 +502,16 @@ export async function getCompletedTasksHistory(req: Request, res: Response, next
   }
 }
 
+export async function getWorkspaceTasksDue(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const workspaceId = requireParam(req, 'workspaceId');
+    const tasks = await taskService.getWorkspaceTasksDue(workspaceId);
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function restoreTask(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const taskId = requireParam(req, 'id');

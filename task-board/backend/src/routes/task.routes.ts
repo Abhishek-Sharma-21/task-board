@@ -120,6 +120,14 @@ router.get(
   controller.getCompletedTasksHistory
 );
 
+// Workspace all tasks with due dates (for calendar)
+router.get(
+  '/workspaces/:workspaceId/tasks/due',
+  authenticate,
+  requireWorkspaceRole('member', 'workspaceId'),
+  controller.getWorkspaceTasksDue
+);
+
 router.post(
   '/workspaces/:workspaceId/tasks/history/prune',
   authenticate,
